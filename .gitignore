@@ -1,0 +1,10 @@
+# 包目录 (由 package.el 管理, 不入库)
+elpa/
+
+# 运行时数据 / 隐私
+auto-save-list/
+.cache/
+tutorial/
+ecompleterc
+accounts.el
+*.elc
