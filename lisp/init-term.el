@@ -4,7 +4,7 @@
 ;;
 ;; vterm: Emacs 中最快的终端模拟器 (C 实现, libvterm)
 ;; 依赖: cmake (编译期) — brew install cmake
-;; 快捷键: C-c t 打开终端, C-c T 在项目根目录打开终端
+;; 快捷键: C-c v 打开终端, C-c V 新窗口打开终端
 
 ;;; Code:
 
