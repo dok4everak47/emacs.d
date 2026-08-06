@@ -98,7 +98,10 @@
   :custom
   (markdown-command (list "python3" (expand-file-name "md2html.py" user-emacs-directory)))
   (markdown-live-preview-window-function #'markdown-live-preview-window-eww)
-  (markdown-live-preview-delete-export 'delete-on-destroy))
+  (markdown-live-preview-delete-export 'delete-on-destroy)
+  :config
+  ;; 源码窗口显式关闭预览: C-c C-c q (evil 的 q 是宏录制, 不能用来关预览)
+  (define-key markdown-mode-command-map (kbd "q") #'markdown-live-preview-mode))
 
 ;; ---------- move-text: 整行上下移动 ----------
 (use-package move-text
