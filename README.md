@@ -48,7 +48,7 @@
 
 **内嵌终端 (lisp/init-term.el)**
 - vterm：C 实现的高速终端模拟器（替代 VSCode 内置终端）
-- `C-c t` 当前窗口打开终端、`C-c T` 新窗口打开
+- `C-c v` 当前窗口打开终端、`C-c V` 新窗口打开
 - 退出自动关 buffer、10000 行回滚、copy-mode 快速滚动
 
 **开发辅助 (lisp/init-dev.el)**

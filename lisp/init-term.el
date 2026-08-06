@@ -15,15 +15,14 @@
   :ensure t
   :commands (vterm vterm-other-window)
   :bind
-  (("C-c t" . vterm)                        ; 当前窗口打开终端
-   ("C-c T" . vterm-other-window))          ; 新窗口打开终端
+  (("C-c v" . vterm)                        ; 当前窗口打开终端
+   ("C-c V" . vterm-other-window))          ; 新窗口打开终端
   :custom
   (vterm-maximum-scrollback 10000)          ; 回滚行数
   (vterm-shell (or (executable-find "bash")
                    "/bin/bash"))            ; 用 bash (nix 5.3 优先)
   (vterm-term-environment-variable "TERM=xterm-256color")
   (vterm-kill-buffer-on-exit t)            ; 退出终端自动关 buffer
-  (vterm-copy-mode_exclude-regexp "^No further matches.*$") ; 排除提示噪声
   :config
   ;; 退出 vterm buffer 时不杀整个窗口 (避免误关编辑器窗口)
   (setq vterm-buffer-name "vterm"

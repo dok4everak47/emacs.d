@@ -45,20 +45,24 @@
 ;; 保存即刷新, 不需要手动 reload
 (use-package impatient-mode
   :ensure t
-  :commands (impatient-mode impatient-global-mode)
+  :commands (impatient-mode)
   :custom
   (impatient-default-delay 0.5)              ; 0.5s 防抖
   :config
-  ;; impatient 需要一个 HTTP server, 用内置 simple-httpd
+  ;; impatient 需要 simple-httpd, 懒启动 (首次开 impatient-mode 时才起)
   (use-package simple-httpd
     :ensure t
     :custom
-    (httpd-port 8080)                         ; 预览端口
-    (httpd-host "localhost")
-    :config
-    ;; httpd 启动后自动开 impatient
-    (unless (httpd-running-p)
-      (httpd-start))))
+    (httpd-port 8080)
+    (httpd-host "localhost"))
+  ;; impatient-mode 开启时自动启动 httpd (而不是每次启动 Emacs 都开)
+  (advice-add 'impatient-mode :before
+              (lambda (&rest _)
+                (unless (fboundp 'httpd-running-p)
+                  (require 'simple-httpd))
+                (when (fboundp 'httpd-running-p)
+                  (unless (httpd-running-p)
+                    (httpd-start))))))
 
 (provide 'init-dev)
 ;;; init-dev.el ends here

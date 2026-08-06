@@ -8,7 +8,6 @@
 ;; evil-nerd-commenter: gcc 注释切换
 ;;
 ;; 退出 insert 模式: C-g 或 Esc (无延迟)
-;; leader 键: C-SPC (space 下的快速操作入口)
 
 ;;; Code:
 
@@ -52,17 +51,13 @@
   (global-evil-surround-mode 1))
 
 ;; ---------- evil-nerd-commenter: 注释切换 ----------
-;; gcc — 注释/取消注释当前行
-;; gc + motion — 注释选区 (如 gc3j 注释向下 3 行)
-;; (替代 Vim 的 nerdcommenter)
+;; gc 作为 evil operator, 自然支持 gcc/gc3j/gcG/gc + motion
 (use-package evil-nerd-commenter
   :ensure t
   :after evil
-  :bind
-  (:map evil-normal-state-map
-        ("gcc" . evilnc-comment-or-uncomment-lines))
-  (:map evil-visual-state-map
-        ("gc" . evilnc-comment-or-uncomment-lines)))
+  :config
+  (define-key evil-normal-state-map "gc" 'evilnc-comment-operator)
+  (define-key evil-visual-state-map "gc" 'evilnc-comment-operator))
 
 (provide 'init-evil)
 ;;; init-evil.el ends here

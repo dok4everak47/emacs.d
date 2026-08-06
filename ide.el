@@ -19,7 +19,11 @@
   :config
   (setq doom-themes-enable-bold t
         doom-themes-enable-italic t)
-  (load-theme 'doom-one t))
+  (load-theme 'doom-one t)
+  ;; treemacs 集成 (文件树用 doom 图标)
+  (doom-themes-treemacs-config)
+  ;; 可视化错误提示 (闪屏替代蜂鸣声)
+  (doom-themes-visual-bell-config))
 
 ;; ---------- 字体 (macOS 自带 SF Mono) ----------
 (set-face-attribute 'default nil :family "SF Mono" :height 140)
@@ -43,8 +47,9 @@
   :config
   (mood-line-mode 1))
 
-;; ---------- 行号 ----------
+;; ---------- 行号 (相对行号, evil-mode 最佳实践: 3j = 向下 3 行) ----------
 (global-display-line-numbers-mode 1)
+(setq display-line-numbers-type 'relative)
 
 ;; ---------- 隐藏工具条 (更像 VSCode; 需要时 M-x tool-bar-mode 可开回) ----------
 (tool-bar-mode -1)

@@ -15,10 +15,10 @@
 (use-package exec-path-from-shell
   :ensure t
   :when (memq window-system '(mac ns pgtk))
-  :init
-  (exec-path-from-shell-initialize)
   :custom
-  (exec-path-from-shell-arguments '("-l"))) ; login shell
+  (exec-path-from-shell-arguments '("-l"))   ; login shell
+  :config
+  (exec-path-from-shell-initialize))
 
 ;; ---------- envrc: direnv 集成 ----------
 ;; 项目根目录有 .envrc 文件时, 自动 direnv allow 并加载环境变量
