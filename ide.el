@@ -26,7 +26,14 @@
   (doom-themes-visual-bell-config))
 
 ;; ---------- 字体 (macOS 自带 SF Mono) ----------
-(set-face-attribute 'default nil :family "SF Mono" :height 140)
+(set-face-attribute 'default nil :family "Comic Sans MS" :height 180)
+
+;; 中文字体: 西文字体 (Comic Sans MS) 没有中文字形, Emacs 会自动 fallback
+;; 到系统默认中文字体, 导致中英文风格不统一。
+;; 指定 fontset: 汉字/日文假名/谚文等 CJK 字符用苹方 (PingFang SC, macOS 内置)。
+;; 想换其他中文字体, 改 "PingFang SC" 即可 (如 "Songti SC" 宋体 / "Heiti SC" 黑体)。
+(dolist (charset '(kana han cjk-misc bopomofo))
+  (set-fontset-font t charset (font-spec :family "PingFang SC")))
 
 ;; ---------- 标签页 (VSCode 上方 tab, 可鼠标点击/关闭) ----------
 (tab-bar-mode 1)
