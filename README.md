@@ -46,6 +46,15 @@
 - yasnippet + yasnippet-snippets：代码片段模板展开
 - treesit-auto：自动安装 tree-sitter 语法包，高亮/缩进更精准
 
+**内嵌终端 (lisp/init-term.el)**
+- vterm：C 实现的高速终端模拟器（替代 VSCode 内置终端）
+- `C-c t` 当前窗口打开终端、`C-c T` 新窗口打开
+- 退出自动关 buffer、10000 行回滚、copy-mode 快速滚动
+
+**开发辅助 (lisp/init-dev.el)**
+- flymake：Emacs 29+ 内置实时语法检查（fringe + margin 标记，`M-g n`/`M-g p` 跳转，`C-c ! l` 错误列表）
+- impatient-mode + simple-httpd：HTML/CSS 实时预览（编辑即刷新，替代 VSCode Live Server，`localhost:8080`）
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -58,11 +67,11 @@
 git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 ```
 
-首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons / vertico / consult / corfu / magit 等）。
+首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons / vertico / consult / corfu / magit / impatient-mode 等）。
 
 安装后执行 `M-x nerd-icons-install-fonts` 安装图标字体（一次性）。
 
-依赖环境：Emacs 30+、macOS、ClashX 代理（Gmail 发送隧道）、macOS 钥匙串凭据（smtp.gmail.com / smtp.126.com）。
+依赖环境：Emacs 30+、macOS、ClashX 代理（Gmail 发送隧道）、macOS 钥匙串凭据（smtp.gmail.com / smtp.126.com）、cmake（vterm 编译，`brew install cmake`）。
 
 ## 文件结构
 
@@ -74,6 +83,8 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `lisp/init-completion.el` | 搜索与补全：vertico / consult / orderless / marginalia / embark / corfu |
 | `lisp/init-tools.el` | 开发工具：which-key / magit / diff-hl |
 | `lisp/init-env.el` | 环境集成：exec-path-from-shell / envrc / yasnippet / treesit-auto |
+| `lisp/init-term.el` | 内嵌终端：vterm（C 实现高速终端） |
+| `lisp/init-dev.el` | 开发辅助：flymake 语法检查 / impatient-mode 实时预览 |
 
 ## 注意
 

@@ -11,3 +11,5 @@ accounts.el
 recentf
 .DS_Store
 .workbuddy/
+eln-cache/
+history

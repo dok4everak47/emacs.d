@@ -578,6 +578,8 @@
 (require 'init-completion nil t)
 (require 'init-tools nil t)
 (require 'init-env nil t)
+(require 'init-term nil t)
+(require 'init-dev nil t)
 ;;; init.el ends here
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
