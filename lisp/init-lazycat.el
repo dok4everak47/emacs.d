@@ -100,8 +100,38 @@
   (markdown-live-preview-window-function #'markdown-live-preview-window-eww)
   (markdown-live-preview-delete-export 'delete-on-destroy)
   :config
-  ;; 源码窗口显式关闭预览: C-c C-c q (evil 的 q 是宏录制, 不能用来关预览)
-  (define-key markdown-mode-command-map (kbd "q") #'markdown-live-preview-mode))
+  ;; 显式关闭预览: C-c C-c q (evil 的 q 是宏录制, 不能用来关预览)
+  ;; markdown-live-preview-mode 是 buffer-local 变量, 只在源码 buffer 为 t;
+  ;; 在预览窗口 (*eww*) 里是 nil → 必须通过 markdown-live-preview-source-buffer
+  ;; 找到源码 buffer 再关闭, 否则在预览窗口按 q 会"没反应"。
+  (defun my-markdown-preview-close ()
+    "关闭 Markdown 实时预览 (无论光标在源码窗口还是预览窗口)."
+    (interactive)
+    (let ((src
+           (cond
+            ((and (boundp 'markdown-live-preview-mode) markdown-live-preview-mode)
+             (current-buffer))
+            ((and (boundp 'markdown-live-preview-source-buffer)
+                  (buffer-live-p markdown-live-preview-source-buffer))
+             markdown-live-preview-source-buffer))))
+      (when src
+        (with-current-buffer src
+          (when (and (boundp 'markdown-live-preview-mode) markdown-live-preview-mode)
+            (markdown-live-preview-mode -1))))))
+  (define-key markdown-mode-command-map (kbd "q") #'my-markdown-preview-close)
+  ;; 预览 buffer (*eww*) 也绑定 q / C-c C-c q → 关闭 (只影响 live-preview 的
+  ;; eww buffer, 用 buffer-local keymap, 不影响普通网页浏览)
+  (defun my-markdown-preview-eww-keys (&rest _args)
+    "给 live-preview 的 eww buffer 加 buffer-local 关闭绑定."
+    (when (and (boundp 'markdown-live-preview-buffer)
+               (buffer-live-p markdown-live-preview-buffer))
+      (with-current-buffer markdown-live-preview-buffer
+        (let ((map (make-sparse-keymap)))
+          (set-keymap-parent map (current-local-map))
+          (define-key map (kbd "q") #'my-markdown-preview-close)
+          (define-key map (kbd "C-c C-c q") #'my-markdown-preview-close)
+          (use-local-map map)))))
+  (advice-add 'markdown-live-preview-mode :after #'my-markdown-preview-eww-keys))
 
 ;; ---------- move-text: 整行上下移动 ----------
 (use-package move-text
