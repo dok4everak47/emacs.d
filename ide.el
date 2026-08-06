@@ -68,12 +68,29 @@
 ;; ---------- 隐藏工具条 (更像 VSCode; 需要时 M-x tool-bar-mode 可开回) ----------
 (tool-bar-mode -1)
 
-;; ---------- LSP (内置 eglot; 手动启动, 避免没有 language server 时报错) ----------
+;; ---------- LSP (内置 eglot; PHP 自动启动, 其他语言手动) ----------
+;; PHP: 用 php-mode (纯 font-lock 高亮, 不依赖 tree-sitter grammar) + phpactor LSP
+;; 说明: php-ts-mode (tree-sitter 版) 在 Emacs 30.2 要求 6 个 grammar
+;; (php/phpdoc/html/js/jsdoc/css), 新版 tree-sitter-php 已合并 phpdoc/jsdoc,
+;; 导致缺 grammar 拒绝启动, 故退回成熟的 php-mode。
+;; 其他语言 (eglot-ensure 找不到 server 会报错) 仍用 C-c e e 手动启动
 (use-package eglot
   :bind (("C-c e e" . eglot))
   :config
   (setq eglot-autoshutdown t
-        eglot-confirm-server-initiated-edits nil))
+        eglot-confirm-server-initiated-edits nil)
+  ;; phpactor 注册为 php 的 LSP server (eglot 默认不知道 phpactor)
+  (with-eval-after-load 'eglot
+    (add-to-list 'eglot-server-programs
+                 '(php-mode . ("phpactor" "language-server"))))
+  ;; PHP 文件自动启动 eglot (phpactor 只会在 nix devShell 里, 找不到时
+  ;; eglot-ensure 会提示, 不影响其他文件)
+  (add-hook 'php-mode-hook #'eglot-ensure))
+
+;; ---------- php-mode: PHP 语法高亮 + 缩进 ----------
+(use-package php-mode
+  :ensure t
+  :mode ("\\.php\\'" "\\.phtml\\'"))
 
 ;; ---------- 菜单栏加 "IDE" 菜单 (GUI 友好, 不用记快捷键) ----------
 (easy-menu-define nil global-map "IDE"

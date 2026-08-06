@@ -71,14 +71,22 @@
   :ensure t
   :custom
   (treesit-auto-install 'prompt)           ; 首次使用时提示安装
+  ;; php 排除: php-ts-mode 在 Emacs 30.2 要求 6 个 grammar (php/phpdoc/html/
+  ;; js/jsdoc/css), 缺 phpdoc/jsdoc 拒绝启动; php 改用 php-mode (纯 font-lock)。
+  ;; 排除后 treesit-auto 的 remap/auto-mode-alist 都不会碰 .php。
+  (treesit-auto-langs
+   (seq-remove (lambda (l) (memq l '(php))) ; 保留其余全部语言
+               (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)))
   :config
+  (require 'treesit)  ; 确保 tree-sitter 核心已加载 (batch 下需显式)
   (defvar my-treesit-auto-activated nil)
   (defun my-treesit-auto-activate ()
     "首次打开文件时激活 treesit-auto (懒加载, 加速启动)."
     (unless my-treesit-auto-activated
       (setq my-treesit-auto-activated t)
+      ;; 用 'all: 无条件注册所有 ts-mode 到 auto-mode-alist (php 已排除)
       (global-treesit-auto-mode 1)
-      (treesit-auto-add-to-auto-mode-alist)))
+      (treesit-auto-add-to-auto-mode-alist 'all)))
   (add-hook 'after-find-file-hook #'my-treesit-auto-activate))
 
 (provide 'init-env)
