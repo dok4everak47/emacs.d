@@ -84,6 +84,22 @@
   :config
   (global-pangu-spacing-mode 1))
 
+;; ---------- markdown-mode: Markdown 编辑 + Emacs 内预览 ----------
+;; 打开 .md 自动进 gfm-mode (GitHub 风格语法高亮)
+;; 预览: C-c C-c l (markdown-live-preview-mode)
+;;   → 用内置 eww 在 Emacs 内部渲染, 无需外部浏览器, 编辑实时刷新
+;;   → 转换走 md2html.py (纯 Python 标准库, 无 markdown 命令依赖)
+;;   → 退出预览: 关掉预览窗口即可
+(use-package markdown-mode
+  :ensure t
+  :mode (("\\.md\\'" . gfm-mode)
+         ("\\.markdown\\'" . gfm-mode)
+         ("\\.mdown\\'" . gfm-mode))
+  :custom
+  (markdown-command (list "python3" (expand-file-name "md2html.py" user-emacs-directory)))
+  (markdown-live-preview-window-function #'markdown-live-preview-window-eww)
+  (markdown-live-preview-delete-export 'delete-on-destroy))
+
 ;; ---------- move-text: 整行上下移动 ----------
 (use-package move-text
   :ensure t)   ; 命令 move-text-up / move-text-down, 不绑键 (避开 org 的 M-<up>)
