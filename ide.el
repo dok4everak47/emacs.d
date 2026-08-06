@@ -39,6 +39,11 @@
         treemacs-follow-mode t          ; 光标切 buffer 时文件树自动跟随
         treemacs-file-event-mode t      ; 外部文件变更自动刷新
         treemacs-project-follow-mode t)
+  ;; evil 集成: treemacs 的单字母键 (s/d/r/u/m/h/l 等) 被 evil normal state
+  ;; 覆盖, evil-collection 无 treemacs 模块。用 emacs state 让原生键全部生效;
+  ;; treemacs 自带 n/p 上下、h/l 折叠展开, 不依赖 evil j/k。
+  (when (featurep 'evil)
+    (evil-set-initial-state 'treemacs-mode 'emacs))
   (global-set-key (kbd "C-c t t") #'treemacs)          ; 打开/关闭文件树
   (global-set-key (kbd "C-c t d") #'treemacs-select-window))
 
