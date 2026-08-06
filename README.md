@@ -26,11 +26,13 @@
 **IDE 外观 (ide.el)**
 - One Dark 主题、标签页 (tab-bar)、侧边栏文件树 (treemacs)、行号、状态栏
 - 内置 eglot (LSP)、菜单栏"IDE"菜单（GUI 操作）
+- Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（收邮件 / 写邮件 / 文件树 / 退出）+ 最近文件 + 项目列表 + 图标 + 垂直居中
 
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
 - server-start：允许 emacsclient 远程连接
+- M-x shell 使用 bash 5.3（nix），非 macOS 自带 3.2
 
 ## 安装
 
@@ -38,7 +40,9 @@
 git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 ```
 
-首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line）。
+首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons）。
+
+安装后执行 `M-x nerd-icons-install-fonts` 安装图标字体（一次性）。
 
 依赖环境：Emacs 30+、macOS、ClashX 代理（Gmail 发送隧道）、macOS 钥匙串凭据（smtp.gmail.com / smtp.126.com）。
 
@@ -48,7 +52,7 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 |---|---|
 | `init.el` | 主配置：邮件 + Gnus + 导航 + 诊断 |
 | `early-init.el` | 启动早期配置（关闭 native 编译避免刷屏） |
-| `ide.el` | VSCode 外观层（可整个删除还原） |
+| `ide.el` | VSCode 外观层 + Dashboard 导航页（可整个删除还原） |
 
 ## 注意
 
