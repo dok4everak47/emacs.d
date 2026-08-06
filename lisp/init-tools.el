@@ -47,12 +47,57 @@
   (add-hook 'magit-post-refresh-hook #'diff-hl-magit-post-refresh))
 
 ;; ---------- diredfl: dired 文件类型高亮 ----------
-;; 让 dired 按文件类型显示不同颜色 (源码/文档/图片/压缩包/可执行等),
-;; 不再全是黑白。目录、符号链接、可执行文件也有专属颜色。
+;; 让 dired 按文件类型显示不同颜色, 不再全是黑白。
+;; 自定义配色 (doom-one 主题色系, 覆盖 diredfl 默认):
+;;   目录=蓝  隐藏文件(.开头)=白  文档(.md/.txt)=暖黄  源码=绿
+;;   图片=紫  压缩包=红  配置(.json/.yaml)=青
 (use-package diredfl
   :ensure t
+  :demand t
   :config
-  (diredfl-global-mode 1))
+  (diredfl-global-mode 1)
+  ;; 目录 → 蓝色
+  (set-face-foreground 'diredfl-dir-name "#4A9EFF")
+
+  ;; 自定义分类 face (defface + defvar 配套, 变量才能被 font-lock 引用)
+  (defface my-dired-doc
+    '((t (:foreground "#E5C07B"))) "dired: 文档类")
+  (defvar my-dired-doc 'my-dired-doc)
+  (defface my-dired-src
+    '((t (:foreground "#98C379"))) "dired: 源码类")
+  (defvar my-dired-src 'my-dired-src)
+  (defface my-dired-img
+    '((t (:foreground "#C678DD"))) "dired: 图片类")
+  (defvar my-dired-img 'my-dired-img)
+  (defface my-dired-arc
+    '((t (:foreground "#E06C75"))) "dired: 压缩包类")
+  (defvar my-dired-arc 'my-dired-arc)
+  (defface my-dired-cfg
+    '((t (:foreground "#56B6C2"))) "dired: 配置文件类")
+  (defvar my-dired-cfg 'my-dired-cfg)
+  (defface my-dired-hidden
+    '((t (:foreground "#ABB2BF"))) "dired: 隐藏文件")
+  (defvar my-dired-hidden 'my-dired-hidden)
+
+  ;; 按扩展名着色 (ANCHORED 挂在文件名起始处, override=t 覆盖 diredfl 默认)
+  ;; 顺序: 文档→源码→图片→压缩→配置→隐藏(最后, 覆盖前面的, 保证 .开头优先白)
+  (font-lock-add-keywords
+   'dired-mode
+   `((,directory-listing-before-filename-regexp
+      ("\\(.+\\)\\.\\(md\\|markdown\\|txt\\|org\\|rst\\|pdf\\)$"
+       nil nil (0 my-dired-doc t))
+      ("\\(.+\\)\\.\\(py\\|js\\|ts\\|go\\|rs\\|rb\\|java\\|c\\|h\\|cpp\\|sh\\|el\\|php\\)$"
+       nil nil (0 my-dired-src t))
+      ("\\(.+\\)\\.\\(png\\|jpg\\|jpeg\\|gif\\|webp\\|svg\\|ico\\)$"
+       nil nil (0 my-dired-img t))
+      ("\\(.+\\)\\.\\(zip\\|tar\\|gz\\|bz2\\|xz\\|7z\\|rar\\)$"
+       nil nil (0 my-dired-arc t))
+      ("\\(.+\\)\\.\\(json\\|yaml\\|yml\\|toml\\|ini\\|conf\\|env\\)$"
+       nil nil (0 my-dired-cfg t))
+      ;; 隐藏文件 (. 开头, 含 .DS_Store/.gitignore 等) → 白色, 最后匹配覆盖前面
+      ("\\.[^ /]+$"
+       nil nil (0 my-dired-hidden t))))
+   t)) ; append: 排在 diredfl 规则之后, 后执行覆盖
 
 (provide 'init-tools)
 ;;; init-tools.el ends here
