@@ -70,7 +70,7 @@
   (setq embark-action-indicator
         (lambda (map &optional _target)
           (when (and map (derived-mode-p 'minibuffer-mode))
-            (format "Embark: %s" (key-binding (kbd "C-.") map)))))
+            (format "Embark: %s" (key-binding (kbd "C-.") map))))))
 
 ;; embark-consult 集成
 (use-package embark-consult
@@ -98,11 +98,6 @@
   ;; Tab 接受补全
   (define-key corfu-map (kbd "TAB") #'corfu-insert)
   (define-key corfu-map (kbd "<tab>") #'corfu-insert))
-
-;; corfu 配 orderless: 补全时也用模糊匹配
-(use-package corfu
-  :custom
-  (corfu-auto t))
 
 ;; cape: corfu 的额外补全后端 (dictionary/abbrev/file/dabbrev)
 (use-package cape
