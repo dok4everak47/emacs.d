@@ -64,8 +64,39 @@
     '((t (:foreground "#E5C07B"))) "dired: 文档类")
   (defvar my-dired-doc 'my-dired-doc)
   (defface my-dired-src
-    '((t (:foreground "#98C379"))) "dired: 源码类")
+    '((t (:foreground "#98C379"))) "dired: 源码类(兜底)")
   (defvar my-dired-src 'my-dired-src)
+  ;; 源码按语言细分 (doom-one 色板)
+  (defface my-dired-py
+    '((t (:foreground "#56B6C2"))) "dired: Python")
+  (defvar my-dired-py 'my-dired-py)
+  (defface my-dired-php
+    '((t (:foreground "#C678DD"))) "dired: PHP")
+  (defvar my-dired-php 'my-dired-php)
+  (defface my-dired-cpp
+    '((t (:foreground "#61AFEF"))) "dired: C/C++/C#")
+  (defvar my-dired-cpp 'my-dired-cpp)
+  (defface my-dired-js
+    '((t (:foreground "#E5C07B"))) "dired: JS/TS")
+  (defvar my-dired-js 'my-dired-js)
+  (defface my-dired-go
+    '((t (:foreground "#98C379"))) "dired: Go")
+  (defvar my-dired-go 'my-dired-go)
+  (defface my-dired-rs
+    '((t (:foreground "#D19A66"))) "dired: Rust")
+  (defvar my-dired-rs 'my-dired-rs)
+  (defface my-dired-rb
+    '((t (:foreground "#E06C75"))) "dired: Ruby")
+  (defvar my-dired-rb 'my-dired-rb)
+  (defface my-dired-java
+    '((t (:foreground "#E06C75"))) "dired: Java")
+  (defvar my-dired-java 'my-dired-java)
+  (defface my-dired-sh
+    '((t (:foreground "#98C379"))) "dired: Shell")
+  (defvar my-dired-sh 'my-dired-sh)
+  (defface my-dired-el
+    '((t (:foreground "#C678DD"))) "dired: Emacs Lisp")
+  (defvar my-dired-el 'my-dired-el)
   (defface my-dired-img
     '((t (:foreground "#C678DD"))) "dired: 图片类")
   (defvar my-dired-img 'my-dired-img)
@@ -80,13 +111,35 @@
   (defvar my-dired-hidden 'my-dired-hidden)
 
   ;; 按扩展名着色 (ANCHORED 挂在文件名起始处, override=t 覆盖 diredfl 默认)
-  ;; 顺序: 文档→源码→图片→压缩→配置→隐藏(最后, 覆盖前面的, 保证 .开头优先白)
+  ;; 顺序: 文档→各语言源码→图片→压缩→配置→隐藏(最后, 覆盖前面的, 保证 .开头优先白)
   (font-lock-add-keywords
    'dired-mode
    `((,directory-listing-before-filename-regexp
       ("\\(.+\\)\\.\\(md\\|markdown\\|txt\\|org\\|rst\\|pdf\\)$"
        nil nil (0 my-dired-doc t))
-      ("\\(.+\\)\\.\\(py\\|js\\|ts\\|go\\|rs\\|rb\\|java\\|c\\|h\\|cpp\\|sh\\|el\\|php\\)$"
+      ;; 各语言源码
+      ("\\(.+\\)\\.\\(py\\|pyw\\|pyx\\)$"
+       nil nil (0 my-dired-py t))                                     ; Python → 青
+      ("\\(.+\\)\\.\\(php\\|phtml\\)$"
+       nil nil (0 my-dired-php t))                                    ; PHP → 紫
+      ("\\(.+\\)\\.\\(c\\|h\\|cpp\\|hpp\\|cc\\|cxx\\|cs\\)$"
+       nil nil (0 my-dired-cpp t))                                    ; C/C++/C# → 蓝
+      ("\\(.+\\)\\.\\(js\\|jsx\\|mjs\\|ts\\|tsx\\)$"
+       nil nil (0 my-dired-js t))                                     ; JS/TS → 黄
+      ("\\(.+\\)\\.\\(go\\)$"
+       nil nil (0 my-dired-go t))                                     ; Go → 绿
+      ("\\(.+\\)\\.\\(rs\\)$"
+       nil nil (0 my-dired-rs t))                                     ; Rust → 橙
+      ("\\(.+\\)\\.\\(rb\\|rake\\|gemspec\\)$"
+       nil nil (0 my-dired-rb t))                                     ; Ruby → 红
+      ("\\(.+\\)\\.\\(java\\|kt\\|kts\\)$"
+       nil nil (0 my-dired-java t))                                   ; Java/Kotlin → 红
+      ("\\(.+\\)\\.\\(sh\\|bash\\|zsh\\|fish\\|ps1\\)$"
+       nil nil (0 my-dired-sh t))                                     ; Shell → 绿
+      ("\\(.+\\)\\.\\(el\\|elc\\)$"
+       nil nil (0 my-dired-el t))                                     ; Elisp → 紫
+      ;; 其余源码兜底 → 绿
+      ("\\(.+\\)\\.\\(lua\\|pl\\|pm\\|swift\\|scala\\|clj\\|hs\\|ml\\|dart\\|ex\\|exs\\|erl\\|vim\\|sql\\)$"
        nil nil (0 my-dired-src t))
       ("\\(.+\\)\\.\\(png\\|jpg\\|jpeg\\|gif\\|webp\\|svg\\|ico\\)$"
        nil nil (0 my-dired-img t))
