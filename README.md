@@ -55,6 +55,12 @@
 - flymake：Emacs 29+ 内置实时语法检查（fringe + margin 标记，`M-g n`/`M-g p` 跳转，`C-c ! l` 错误列表）
 - impatient-mode + simple-httpd：HTML/CSS 实时预览（编辑即刷新，替代 VSCode Live Server，`localhost:8080`）
 
+**Vim 仿真 (lisp/init-evil.el)**
+- evil：Normal/Insert/Visual/Operator-pending 全模式，Esc 无延迟，C-u 半屏滚动
+- evil-collection：为 magit/dired/ediff 等数十个 major-mode 统一 evil 快捷键
+- evil-surround：环绕操作（`cs"'` 改引号、`ds"` 删引号、`yss"` 加引号）
+- evil-nerd-commenter：`gcc` 注释切换、`gc` + motion 批量注释
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -85,6 +91,7 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `lisp/init-env.el` | 环境集成：exec-path-from-shell / envrc / yasnippet / treesit-auto |
 | `lisp/init-term.el` | 内嵌终端：vterm（C 实现高速终端） |
 | `lisp/init-dev.el` | 开发辅助：flymake 语法检查 / impatient-mode 实时预览 |
+| `lisp/init-evil.el` | Vim 仿真：evil / evil-collection / evil-surround / evil-nerd-commenter |
 
 ## 注意
 
