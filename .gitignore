@@ -8,3 +8,6 @@ tutorial/
 ecompleterc
 accounts.el
 *.elc
+recentf
+.DS_Store
+.workbuddy/

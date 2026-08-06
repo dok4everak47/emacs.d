@@ -9,7 +9,8 @@
 (setq package-archives
       '(("gnu" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/")
         ("nongnu" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/nongnu/")
-        ("melpa" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/melpa/")))
+        ("melpa" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/melpa/")
+        ("melpa-upstream" . "https://melpa.org/packages/")))
 (package-initialize)
 (require 'use-package)
 (setq use-package-always-ensure t)
@@ -64,6 +65,73 @@
     ["刷新文件树" treemacs-refresh t]
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
+
+;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
+(use-package nerd-icons
+  :ensure t
+  :when (display-graphic-p)
+  :demand t)
+
+(use-package dashboard
+  :ensure t
+  :init
+  ;; Navigator 按钮: 收邮件 / 写邮件 / 文件树 / 退出
+  ;; (fboundp 守卫: nerd-icons 未加载时回退到文字图标)
+  (setq dashboard-navigator-buttons
+        `(((,(if (fboundp 'nerd-icons-octicon)
+                (nerd-icons-octicon "nf-oct-mail") "✉")
+            "收邮件" "Gnus 收邮件"
+            (lambda (&rest _) (gnus)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-pencil") "✍")
+            "Gmail" "撰写 Gmail"
+            (lambda (&rest _) (my-compose-gmail)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-pencil") "✍")
+            "126" "撰写 126 邮件"
+            (lambda (&rest _) (my-compose-mail126)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-file_directory") "📂")
+            "文件树" "打开 Treemacs"
+            (lambda (&rest _) (treemacs)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-sign_out") "🚪")
+            "退出" "退出 Emacs"
+            (lambda (&rest _) (save-buffers-kill-terminal))))))
+  (dashboard-setup-startup-hook)
+  :custom
+  (dashboard-startup-banner 'logo)
+  (dashboard-set-heading-icons t)
+  (dashboard-set-file-icons t)
+  (dashboard-center-content t)
+  (dashboard-vertically-center-content t)
+  (dashboard-banner-logo-title "Welcome to Emacs")
+  (dashboard-items '((recents . 10)
+                     (projects . 5)))
+  (dashboard-projects-backend 'project-el)
+  (dashboard-startupify-list
+   '(dashboard-insert-banner
+     dashboard-insert-newline
+     dashboard-insert-banner-title
+     dashboard-insert-newline
+     dashboard-insert-navigator
+     dashboard-insert-newline
+     dashboard-insert-init-info
+     dashboard-insert-newline
+     dashboard-insert-items
+     dashboard-insert-newline
+     dashboard-insert-footer)))
+
+;; 最近文件记录 (dashboard recents 依赖)
+(recentf-mode 1)
+
+;; 顶部标签页: Dashboard 的 tab 显示 🏠 Home, 其他 buffer 显示原名
+(setq tab-bar-tab-name-format-function
+      (lambda (tab _i)
+        (let ((name (alist-get 'name tab)))
+          (if (string= name dashboard-buffer-name)
+              "🏠 Home"
+            name))))
 
 (provide 'ide)
 ;;; ide.el ends here

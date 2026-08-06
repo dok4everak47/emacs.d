@@ -560,9 +560,27 @@
   ;; 会整线程隐藏, 导致某些页只有 8-9 条)
   (setq gnus-show-threads nil))
 
+;; ================= Emacs 内 bash shell =================
+;; M-x shell 使用 bash 5.3 (nix), 而非 macOS 自带的老版 bash 3.2。
+;; 只影响 M-x shell; 内部 shell-command 仍走默认 sh, 互不干扰。
+(when-let ((bash (executable-find "bash")))
+  (setq explicit-shell-file-name bash))
+
 ;; ================= IDE 外观 (VSCode-like) =================
 ;; 由 ide.el 提供 (主题/标签页/侧边栏/行号等), 与邮件配置隔离。
 ;; 不想要时删掉本段两行即可。
 (when (file-exists-p (expand-file-name "ide.el" user-emacs-directory))
   (load (expand-file-name "ide.el" user-emacs-directory)))
 ;;; init.el ends here
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(package-selected-packages nil))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
