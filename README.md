@@ -28,6 +28,24 @@
 - 内置 eglot (LSP)、菜单栏"IDE"菜单（GUI 操作）
 - Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（收邮件 / 写邮件 / 文件树 / 退出）+ 最近文件 + 项目列表 + 图标 + 垂直居中
 
+**搜索与补全 (lisp/init-completion.el)**
+- vertico + orderless：minibuffer 模糊搜索（空格分隔关键词，顺序无关）
+- consult：`M-s g` 项目内 ripgrep 全局搜索、`M-s s` 行内搜索、`C-x b` buffer 切换带预览
+- marginalia：minibuffer 条目右侧注解（文件大小、函数描述等）
+- embark：`C-.` / `M-o` 光标处上下文操作（类似 VSCode 右键菜单）
+- corfu + cape：代码补全弹窗（自动触发、模糊匹配、Tab 接受）
+
+**开发工具 (lisp/init-tools.el)**
+- which-key：按下前缀键后弹出可用按键列表，不用背快捷键
+- magit：`C-x g` 打开 Git 客户端（diff 按词高亮）
+- diff-hl：左侧 gutter 实时显示 git 变更标记（新增/修改/删除）
+
+**环境集成 (lisp/init-env.el)**
+- exec-path-from-shell：从 shell 继承 PATH（nix/homebrew 命令在 GUI Emacs 可用）
+- envrc：direnv 集成（.envrc 项目自动加载环境变量）
+- yasnippet + yasnippet-snippets：代码片段模板展开
+- treesit-auto：自动安装 tree-sitter 语法包，高亮/缩进更精准
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -40,7 +58,7 @@
 git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 ```
 
-首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons）。
+首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons / vertico / consult / corfu / magit 等）。
 
 安装后执行 `M-x nerd-icons-install-fonts` 安装图标字体（一次性）。
 
@@ -50,11 +68,14 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 
 | 文件 | 作用 |
 |---|---|
-| `init.el` | 主配置：邮件 + Gnus + 导航 + 诊断 |
+| `init.el` | 主配置：邮件 + Gnus + 导航 + 诊断 + 模块加载 |
 | `early-init.el` | 启动早期配置（关闭 native 编译避免刷屏） |
-| `ide.el` | VSCode 外观层 + Dashboard 导航页（可整个删除还原） |
+| `ide.el` | VSCode 外观层 + Dashboard 导航页 + package.el 初始化 |
+| `lisp/init-completion.el` | 搜索与补全：vertico / consult / orderless / marginalia / embark / corfu |
+| `lisp/init-tools.el` | 开发工具：which-key / magit / diff-hl |
+| `lisp/init-env.el` | 环境集成：exec-path-from-shell / envrc / yasnippet / treesit-auto |
 
 ## 注意
 
 - 邮箱凭据在 macOS 钥匙串，不在此仓库
-- 想还原默认外观：删除 `ide.el` 和 `init.el` 末尾两行
+- 想还原默认外观：删除 `ide.el` 和 `init.el` 末尾模块加载段

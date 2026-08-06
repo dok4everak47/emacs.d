@@ -566,11 +566,18 @@
 (when-let ((bash (executable-find "bash")))
   (setq explicit-shell-file-name bash))
 
-;; ================= IDE 外观 (VSCode-like) =================
-;; 由 ide.el 提供 (主题/标签页/侧边栏/行号等), 与邮件配置隔离。
-;; 不想要时删掉本段两行即可。
+;; ================= IDE 外观 + 模块加载 (VSCode-like) =================
+;; 模块化: lisp/ 下的模块按依赖顺序加载
+(let ((lisp-dir (expand-file-name "lisp" user-emacs-directory)))
+  (when (file-exists-p lisp-dir)
+    (add-to-list 'load-path lisp-dir)))
+;; ide.el 提供主题/标签页/侧边栏/Dashboard 等外观层 (含 package.el 初始化)
 (when (file-exists-p (expand-file-name "ide.el" user-emacs-directory))
   (load (expand-file-name "ide.el" user-emacs-directory)))
+;; 功能模块 (依赖 ide.el 的 package.el 初始化)
+(require 'init-completion nil t)
+(require 'init-tools nil t)
+(require 'init-env nil t)
 ;;; init.el ends here
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
