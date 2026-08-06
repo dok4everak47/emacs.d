@@ -61,6 +61,14 @@
 - evil-surround：环绕操作（`cs"'` 改引号、`ds"` 删引号、`yss"` 加引号）
 - evil-nerd-commenter：`gcc` 注释切换、`gc` + motion 批量注释
 
+**Org Mode (lisp/init-org.el)**
+- org 核心设置：缩进对齐、隐藏前导星号、TODO 状态流转（TODO→DOING→HOLD→DONE/CANC）
+- org-capture 快速捕获：`C-c c` 弹模板菜单（任务/笔记/链接/日记）
+- org-agenda 日程总览：`C-c a` 跨文件查看所有 TODO 和日程
+- org-babel 文学编程：代码块可直接执行（Python / Shell / Emacs Lisp）
+- org-modern 现代外观：符号替代星号、TODO 关键字彩色背景
+- evil-org：evil 快捷键集成（h/l 升降级、Tab 折叠、agenda j/k 导航）
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -92,6 +100,7 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `lisp/init-term.el` | 内嵌终端：vterm（C 实现高速终端） |
 | `lisp/init-dev.el` | 开发辅助：flymake 语法检查 / impatient-mode 实时预览 |
 | `lisp/init-evil.el` | Vim 仿真：evil / evil-collection / evil-surround / evil-nerd-commenter |
+| `lisp/init-org.el` | Org Mode：笔记/任务/文学编程/capture/agenda |
 
 ## 注意
 
