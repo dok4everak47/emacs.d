@@ -68,24 +68,32 @@
 ;; ---------- 隐藏工具条 (更像 VSCode; 需要时 M-x tool-bar-mode 可开回) ----------
 (tool-bar-mode -1)
 
-;; ---------- LSP (内置 eglot; PHP 自动启动, 其他语言手动) ----------
-;; PHP: 用 php-mode (纯 font-lock 高亮, 不依赖 tree-sitter grammar) + phpactor LSP
+;; ---------- LSP (内置 eglot; PHP/Python/JS 自动启动, 其他语言手动) ----------
+;; PHP: php-mode + phpactor (nix devShell)
+;; Python: python-ts-mode + pyright; JS/TS: js-ts-mode + typescript-language-server
 ;; 说明: php-ts-mode (tree-sitter 版) 在 Emacs 30.2 要求 6 个 grammar
 ;; (php/phpdoc/html/js/jsdoc/css), 新版 tree-sitter-php 已合并 phpdoc/jsdoc,
 ;; 导致缺 grammar 拒绝启动, 故退回成熟的 php-mode。
+;; js-ts-mode/python-ts-mode 是软检查 (when treesit-ready-p), 无此问题。
 ;; 其他语言 (eglot-ensure 找不到 server 会报错) 仍用 C-c e e 手动启动
 (use-package eglot
   :bind (("C-c e e" . eglot))
   :config
   (setq eglot-autoshutdown t
         eglot-confirm-server-initiated-edits nil)
-  ;; phpactor 注册为 php 的 LSP server (eglot 默认不知道 phpactor)
+  ;; LSP server 注册 (eglot 默认不知道这些 server)
   (with-eval-after-load 'eglot
-    (add-to-list 'eglot-server-programs
-                 '(php-mode . ("phpactor" "language-server"))))
-  ;; PHP 文件自动启动 eglot (phpactor 只会在 nix devShell 里, 找不到时
-  ;; eglot-ensure 会提示, 不影响其他文件)
-  (add-hook 'php-mode-hook #'eglot-ensure))
+    (dolist (entry '((php-mode . ("phpactor" "language-server"))
+                     (python-ts-mode . ("pyright" "language-server"))
+                     (python-mode . ("pyright" "language-server"))
+                     (js-ts-mode . ("typescript-language-server" "--stdio"))
+                     (typescript-ts-mode . ("typescript-language-server" "--stdio"))))
+      (add-to-list 'eglot-server-programs entry)))
+  ;; 自动启动 eglot (LSP 只在 nix devShell 里, 找不到时 eglot-ensure 会提示)
+  (add-hook 'php-mode-hook #'eglot-ensure)
+  (add-hook 'python-ts-mode-hook #'eglot-ensure)
+  (add-hook 'js-ts-mode-hook #'eglot-ensure)
+  (add-hook 'typescript-ts-mode-hook #'eglot-ensure))
 
 ;; ---------- php-mode: PHP 语法高亮 + 缩进 ----------
 (use-package php-mode
