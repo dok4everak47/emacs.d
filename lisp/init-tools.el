@@ -46,5 +46,13 @@
   ;; magit 操作后自动刷新
   (add-hook 'magit-post-refresh-hook #'diff-hl-magit-post-refresh))
 
+;; ---------- diredfl: dired 文件类型高亮 ----------
+;; 让 dired 按文件类型显示不同颜色 (源码/文档/图片/压缩包/可执行等),
+;; 不再全是黑白。目录、符号链接、可执行文件也有专属颜色。
+(use-package diredfl
+  :ensure t
+  :config
+  (diredfl-global-mode 1))
+
 (provide 'init-tools)
 ;;; init-tools.el ends here
