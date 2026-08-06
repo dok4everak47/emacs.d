@@ -28,7 +28,12 @@
   (setq vterm-buffer-name "vterm"
         vterm-buffer-name-string "vterm")
   ;; Emacs 的 copy-mode 快速滚动 (C-c C-y 进入/退出)
-  (define-key vterm-mode-map (kbd "C-c C-y") #'vterm-copy-mode))
+  (define-key vterm-mode-map (kbd "C-c C-y") #'vterm-copy-mode)
+  ;; C-l 清屏: vterm 默认把 C-l 列入 keymap-exceptions 不传给终端,
+  ;; 导致 C-l 走 Emacs 全局 recenter-top-bottom (只重居中不清屏)。
+  ;; 这里显式绑回, 发 C-l 给终端进程, bash readline 的 clear-screen 生效。
+  (define-key vterm-mode-map (kbd "C-l")
+    (lambda () (interactive) (vterm-send-key "l" nil nil t))))
 
 (provide 'init-term)
 ;;; init-term.el ends here
