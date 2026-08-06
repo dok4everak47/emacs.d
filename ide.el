@@ -9,8 +9,7 @@
 (setq package-archives
       '(("gnu" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/")
         ("nongnu" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/nongnu/")
-        ("melpa" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/melpa/")
-        ("melpa-upstream" . "https://melpa.org/packages/")))
+        ("melpa" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/melpa/")))
 (package-initialize)
 (require 'use-package)
 (setq use-package-always-ensure t)
