@@ -105,19 +105,27 @@
   ;; 在预览窗口 (*eww*) 里是 nil → 必须通过 markdown-live-preview-source-buffer
   ;; 找到源码 buffer 再关闭, 否则在预览窗口按 q 会"没反应"。
   (defun my-markdown-preview-close ()
-    "关闭 Markdown 实时预览 (无论光标在源码窗口还是预览窗口)."
+    "关闭 Markdown 实时预览 (无论光标在源码窗口还是预览窗口).
+关闭后删除预览窗口, 回到单窗口, 不会残留源文件副本."
     (interactive)
-    (let ((src
-           (cond
-            ((and (boundp 'markdown-live-preview-mode) markdown-live-preview-mode)
-             (current-buffer))
-            ((and (boundp 'markdown-live-preview-source-buffer)
-                  (buffer-live-p markdown-live-preview-source-buffer))
-             markdown-live-preview-source-buffer))))
+    (let* ((preview-win (and (boundp 'markdown-live-preview-buffer)
+                             (buffer-live-p markdown-live-preview-buffer)
+                             (get-buffer-window markdown-live-preview-buffer t)))
+           (src
+            (cond
+             ((and (boundp 'markdown-live-preview-mode) markdown-live-preview-mode)
+              (current-buffer))
+             ((and (boundp 'markdown-live-preview-source-buffer)
+                   (buffer-live-p markdown-live-preview-source-buffer))
+              markdown-live-preview-source-buffer))))
       (when src
         (with-current-buffer src
           (when (and (boundp 'markdown-live-preview-mode) markdown-live-preview-mode)
-            (markdown-live-preview-mode -1))))))
+            (markdown-live-preview-mode -1))))
+      ;; kill-buffer 后预览窗口还在但 fallback 显示其他 buffer (源文件副本),
+      ;; 删除该窗口, 回到干净布局
+      (when (window-live-p preview-win)
+        (delete-window preview-win))))
   (define-key markdown-mode-command-map (kbd "q") #'my-markdown-preview-close)
   ;; 预览 buffer (*eww*) 也绑定 q / C-c C-c q → 关闭 (只影响 live-preview 的
   ;; eww buffer, 用 buffer-local keymap, 不影响普通网页浏览)
