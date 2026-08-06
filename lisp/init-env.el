@@ -47,12 +47,11 @@
 ;; treesit-auto 按文件类型自动安装对应语法, 高亮/缩进更精准
 (use-package treesit-auto
   :ensure t
-  :init
-  (global-treesit-auto-mode 1)
   :custom
   (treesit-auto-install 'prompt)           ; 首次使用时提示安装
   :config
-  (treesit-auto-add-to-auto-mode))
+  (global-treesit-auto-mode 1)
+  (treesit-auto-add-to-auto-mode-alist))
 
 (provide 'init-env)
 ;;; init-env.el ends here
