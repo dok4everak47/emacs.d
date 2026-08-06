@@ -522,6 +522,34 @@
         ("j" "日记" entry (file+datetree "~/org/journal.org")
          "* %?\n  %U\n")))
 
+;; ---------- org-table: 纯文本电子表格 ----------
+;; 快速上手 (org 文件里直接敲, 无需任何配置):
+;;   | 项目 | 数量 | 单价 |  合计 |
+;;   |------+------+------+-------|
+;;   | A    |    2 |   10 |    20 |
+;;   | B    |    3 |   15 |    45 |
+;;   | 总计 |      |      |    65 |
+;;   #+TBLFM: $4=$2*$3 :: @5$4=vsum(@2..@4)
+;; 操作:
+;;   TAB/RET       移动单元格 (自动建新行)
+;;   C-c '         单元格区域编辑 (类似 Excel 点击编辑)
+;;   C-c C-c       重算所有公式
+;; 公式语法: $4=$2*$3 列引用, @2..@4 行区间, vsum()/vmean() 聚合
+;; 自动重算默认已开启 (org-table-allow-automatic-line-recalculation)
+
+;; ---------- org-clock: 任务计时 (打卡) ----------
+;; 用法: 光标在任务标题上打卡 (C-c a agenda 里用 I / O 更快)
+;;   C-c C-x C-i   开始计时 (任务自动转 DOING)
+;;   C-c C-x C-o   结束计时
+;;   C-c C-x C-r   插入时间报告 (clocktable)
+;; 时间报告模板 (光标放 #+BEGIN 行上按 C-c C-c 刷新):
+;;   #+BEGIN: clocktable :scope agenda :maxlevel 2 :block thisweek
+;;   #+END:
+(setq org-clock-in-switch-to-state "DOING"    ; 打卡时任务自动转 DOING
+      org-clock-out-remove-zero-time-clocks t ; 零时长记录自动清除
+      org-clock-persist t)                    ; 重启 Emacs 后恢复打卡状态
+(org-clock-persistence-insinuate)
+
 ;; ---------- 全局快捷键 ----------
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览
 (global-set-key (kbd "C-c c") #'org-capture)        ; 快速捕获
