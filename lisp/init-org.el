@@ -4,7 +4,7 @@
 ;;
 ;; org: Emacs 杀手级应用 — 大纲/任务管理/笔记/文学编程/文档导出
 ;; org-modern: 现代化外观 (符号替代星号, TODO 彩色标签)
-;; evil-org: evil 快捷键集成 (h/l 升降级, Tab 折叠, 等)
+;; evil 键位: 原 evil-org 移植 (gh/gj/gk/gl 元素导航, Tab 折叠, 文本对象)
 ;;
 ;; 全局键: C-c a (agenda) / C-c c (capture) / C-c l (存链接)
 ;; 文件目录: ~/org/ (inbox.org / notes.org / journal.org)
@@ -61,21 +61,454 @@
      ("DONE"  . (:background "#98c379" :foreground "#282c34" :weight bold))
      ("CANC"  . (:background "#5c6370" :foreground "#282c34" :weight bold)))))
 
-;; ---------- evil-org: evil 快捷键集成 ----------
-;; 为 org-mode 提供 evil 风格的导航和编辑:
-;;   gh/gj/gk/gl — promote/demote/move headline
-;;   Tab/Shift-Tab — fold/expand
-;;   正常的 j/k/h/l 导航
-(use-package evil-org
-  :ensure t
-  :after (evil org)
-  :hook (org-mode . evil-org-mode)
-  :config
-  (evil-org-set-key-theme
-   '(navigation insert textobjects additional))
-  ;; agenda 也用 evil 快捷键 (j/k 上下, Tab 切换)
-  (require 'evil-org-agenda)
-  (evil-org-agenda-set-keys))
+;; ---------- org: evil 键位 (原 evil-org 移植, 该包 2022 停更 → 自维护) ----------
+;; evil-collection 的 org 支持故意保持基础 (官方注释: NOT intended to
+;; supersede evil-org-mode), 因此这里用原生 evil 复刻原 evil-org 主题
+;; '(navigation insert textobjects additional) + base + agenda 的全部键位,
+;; 行为与旧版一致, 但不再依赖停更的 evil-org 包 (编译零警告)。
+;; 自维护函数统一 my-org- 前缀。
+(require 'cl-lib)
+(require 'evil)
+(require 'org)
+(require 'org-agenda)
+
+;; 把 org 的移动命令声明为 evil motion (支持 d{motion} 等)
+(dolist (fn '(org-beginning-of-line org-end-of-line
+              org-forward-sentence org-backward-sentence
+              org-forward-paragraph org-backward-paragraph
+              org-forward-element org-backward-element
+              org-up-element org-down-element))
+  (evil-declare-motion fn))
+
+;; --- 表感知的句子移动 (原 evil-org-forward/backward-sentence) ---
+(evil-define-motion my-org-forward-sentence (count)
+  "In a table go to next cell, otherwise go to next sentence."
+  :type exclusive :jump t
+  (interactive "p")
+  (if (org-at-table-p)
+      (org-table-end-of-field count)
+    (evil-forward-sentence-begin count)))
+(evil-define-motion my-org-backward-sentence (count)
+  "In a table go to previous cell, otherwise go to previous sentence."
+  :type exclusive :jump t
+  (interactive "p")
+  (if (org-at-table-p)
+      (org-table-beginning-of-field count)
+    (evil-backward-sentence-begin count)))
+
+;; --- 行首/行尾 (org-special-ctrl-a/e 兼容) ---
+(defalias 'my-org-beginning-of-line 'org-beginning-of-line)
+(evil-define-motion my-org-end-of-line (&optional n)
+  "Like org-end-of-line but honors org-special-ctrl-a/e in evil."
+  (when (and org-special-ctrl-a/e
+             evil-move-cursor-back
+             (not evil-move-beyond-eol)
+             (memq evil-state '(normal visual operator))
+             (not (invisible-p (line-end-position)))
+             (= (point) (1- (line-end-position))))
+    (forward-char))
+  (org-end-of-line n))
+
+;; --- gH: 最近的 1 星标题 (原 evil-org-top) ---
+(evil-define-motion my-org-top ()
+  "Find the nearest one-star heading."
+  :type exclusive :jump t
+  (while (org-up-heading-safe)))
+
+;; --- 插入命令: I/A/o/O 结构感知 (原 evil-org-insert-line 等) ---
+(defun my-org-insert-line (count)
+  "Insert at beginning of line; on headings/items after the markers."
+  (interactive "p")
+  (if (org-at-heading-or-item-p)
+      (progn (beginning-of-line)
+             (org-beginning-of-line nil)
+             (evil-insert count))
+    (evil-insert-line count)))
+(defun my-org-append-line (count)
+  "Append at end of line; on headings before tags."
+  (interactive "p")
+  (if (org-at-heading-p)
+      (progn (end-of-line)
+             (org-end-of-line nil)
+             (evil-insert count))
+    (evil-append-line count)))
+(defun my-org-open-below (count)
+  "Clever insertion: continue table rows and list items (like evil-org-open-below)."
+  (interactive "P")
+  (cond ((org-at-table-p)
+         (org-table-insert-row '(4))
+         (evil-insert nil))
+        ((and (org-at-item-p)
+              (progn (end-of-visible-line)
+                     (org-insert-item (org-at-item-checkbox-p))))
+         (evil-insert nil))
+        ((evil-open-below count))))
+(defun my-org-open-above (count)
+  "Clever insertion: continue table rows and list items (like evil-org-open-above)."
+  (interactive "P")
+  (cond ((org-at-table-p)
+         (org-table-insert-row)
+         (evil-insert nil))
+        ((and (org-at-item-p)
+              (progn (beginning-of-line)
+                     (org-insert-item (org-at-item-checkbox-p))))
+         (evil-insert nil))
+        ((evil-open-above count))))
+(defmacro my-org-define-eol-command (cmd)
+  "Return a function that executes CMD at eol and enters insert state."
+  (let ((newcmd (intern (concat "my-org-" (symbol-name cmd) "-below"))))
+    `(progn
+       (defun ,newcmd ()
+         ,(concat "Execute `" (symbol-name cmd) "' at eol, then insert.")
+         (interactive)
+         (end-of-visible-line)
+         (call-interactively #',cmd)
+         (evil-insert nil))
+       #',newcmd)))
+
+;; 生成 C-RET / C-S-RET 用的行尾插入命令 (顶层定义, 编译器可识别)
+(my-org-define-eol-command org-insert-heading-respect-content)
+(my-org-define-eol-command org-insert-todo-heading-respect-content)
+
+;; --- < >: 升降级/缩进/表格列移动 (原 evil-org-> / evil-org-<) ---
+(defun my-org-indent-items (beg end count)
+  "Indent all selected items in itemlist (negative COUNT dedents)."
+  (when (null count) (setq count 1))
+  (let* ((struct (save-excursion (goto-char beg) (org-list-struct)))
+         (region-p (region-active-p)))
+    (if (and struct org-list-automatic-rules (not region-p)
+             (= (line-beginning-position) (org-list-get-top-point struct)))
+        (org-list-indent-item-generic count nil struct)
+      (save-excursion
+        (when region-p (deactivate-mark))
+        (set-mark beg)
+        (goto-char end)
+        (org-list-indent-item-generic count t struct)))))
+(defun my-org-table-move-column (beg end arg)
+  "Move org table column: ARG > 0 moves column BEG to END, ARG < 0 the reverse."
+  (let* ((text (buffer-substring beg end))
+         (n-cells-selected (max 1 (cl-count ?| text)))
+         (n-columns-to-move (* n-cells-selected (abs arg)))
+         (move-left-p (< arg 0)))
+    (goto-char (if move-left-p end beg))
+    (dotimes (_ n-columns-to-move) (org-table-move-column move-left-p))))
+(evil-define-operator my-org-> (beg end count)
+  "Demote/indent/move right: headings, code blocks, tables."
+  :move-point nil
+  (interactive "<r><vc>")
+  (when (null count) (setq count 1))
+  (cond
+   ((org-with-limited-levels
+     (or (org-at-heading-p)
+         (save-excursion (goto-char beg) (org-at-heading-p))))
+    (if (> count 0)
+        (org-map-region 'org-do-demote beg end)
+      (org-map-region 'org-do-promote beg end)))
+   ((and (org-at-table-p)
+         (save-excursion
+           (goto-char beg)
+           (<= (line-beginning-position) end (line-end-position))))
+    (my-org-table-move-column beg end count))
+   ((and (org-at-item-p)
+         (<= end (save-excursion (org-end-of-item-list))))
+    (my-org-indent-items beg end count))
+   (t
+    (when (and (not (region-active-p)) (org-at-table-p))
+      (setq beg (min beg (org-table-begin)))
+      (setq end (max end (org-table-end))))
+    (evil-shift-right beg end count))))
+(evil-define-operator my-org-< (beg end count)
+  "Promote/dedent/move left; see `my-org->'."
+  (interactive "<r><vc>")
+  (my-org-> beg end (- (or count 1))))
+
+;; --- d/x/X: 删除后修整列表编号与标题 tags (原 evil-org-delete 等) ---
+(evil-define-operator my-org-delete (beg end type register yank-handler)
+  "Like evil-delete, but realigns tags and numbered lists."
+  (interactive "<R><x><y>")
+  (let ((renumber-lists-p (or (< beg (line-beginning-position))
+                              (> end (line-end-position)))))
+    (evil-delete beg end type register yank-handler)
+    (cond ((and renumber-lists-p (org-at-item-p))
+           (org-list-repair))
+          ((org-at-heading-p)
+           (org-fix-tags-on-the-fly)))))
+(evil-define-operator my-org-delete-char (count beg end type register)
+  "Combine evil-delete-char with org-delete-char."
+  :motion evil-forward-char
+  (interactive "p<R><x>")
+  (if (evil-visual-state-p)
+      (evil-delete-char beg end type register)
+    (evil-set-register ?- (filter-buffer-substring beg end))
+    (evil-yank beg end type register)
+    (org-delete-char count)))
+(evil-define-operator my-org-delete-backward-char (count beg end type register)
+  "Combine evil-delete-backward-char with org-delete-char."
+  :motion evil-backward-char
+  (interactive "p<R><x>")
+  (if (evil-visual-state-p)
+      (evil-delete-backward-char beg end type register)
+    (evil-set-register ?- (filter-buffer-substring beg end))
+    (evil-yank beg end type register)
+    (org-delete-char count)))
+
+;; --- textobjects (原 evil-org textobjects theme) ---
+(defun my-org-select-an-element (element)
+  "Select an org ELEMENT."
+  (list (min (region-beginning) (org-element-property :begin element))
+        (org-element-property :end element)))
+(defun my-org-select-inner-element (element)
+  "Select inner org ELEMENT."
+  (let ((type (org-element-type element))
+        (begin (org-element-property :begin element))
+        (end (org-element-property :end element))
+        (contents-begin (org-element-property :contents-begin element))
+        (contents-end (org-element-property :contents-end element))
+        (post-affiliated (org-element-property :post-affiliated element))
+        (post-blank (org-element-property :post-blank element)))
+    (cond ((or (string-suffix-p "-block" (symbol-name type))
+               (memq type '(latex-environment)))
+           (list (org-with-point-at post-affiliated (line-beginning-position 2))
+                 (org-with-point-at end (line-beginning-position (- post-blank)))))
+          ((memq type '(verbatim code))
+           (list (1+ begin) (- end post-blank 1)))
+          ('otherwise
+           (list (or contents-begin post-affiliated begin)
+                 (or contents-end
+                     (org-with-point-at end
+                       (if (memq type org-element-all-objects)
+                           (- end post-blank)
+                         (line-end-position (- post-blank))))))))))
+(defun my-org-parent (element)
+  "Find a parent or nearest heading of ELEMENT."
+  (or (org-element-property :parent element)
+      (save-excursion
+        (goto-char (org-element-property :begin element))
+        (if (org-with-limited-levels (org-at-heading-p))
+            (org-up-heading-safe)
+          (org-with-limited-levels (org-back-to-heading)))
+        (org-element-at-point))))
+(evil-define-text-object my-org-an-object (count beg end type)
+  "An org object (urls, table cells)."
+  (when (null end) (setq end (point)))
+  (when (null beg) (setq beg (point)))
+  (let* ((first (org-element-context))
+         (element first))
+    (goto-char end)
+    (when (<= (org-element-property :end element) end)
+      (setq element (org-element-context)))
+    (dotimes (_ (1- count))
+      (goto-char (org-element-property :end element))
+      (setq element (org-element-context)))
+    (my-org-select-an-element element)))
+(evil-define-text-object my-org-inner-object (count &optional beg end type)
+  "Select an org object (urls, table cells)."
+  (my-org-select-inner-element (org-element-context)))
+(evil-define-text-object my-org-an-element (count &optional beg end type)
+  "An org element (paragraphs, table rows, code blocks)."
+  (let* ((first (org-element-at-point))
+         (element first))
+    (when (and end (>= end (org-element-property :end element)))
+      (org-forward-element)
+      (setq element (org-element-at-point)))
+    (dotimes (_ (1- count))
+      (org-forward-element)
+      (setq element (org-element-at-point)))
+    (my-org-select-an-element element)))
+(evil-define-text-object my-org-inner-element (count &optional beg end type)
+  "Inner org element."
+  (my-org-select-inner-element (org-element-at-point)))
+(evil-define-text-object my-org-a-greater-element (count &optional beg end type)
+  "A greater (recursive) org element: tables, list items, subtrees."
+  :type line
+  (when (null count) (setq count 1))
+  (save-excursion
+    (when beg (goto-char beg))
+    (let ((element (org-element-at-point)))
+      (when (or (not (memq (cl-first element) org-element-greater-elements))
+                (and end (>= end (org-element-property :end element))))
+        (setq element (my-org-parent element)))
+      (dotimes (_ (1- count))
+        (setq element (my-org-parent element)))
+      (my-org-select-an-element element))))
+(evil-define-text-object my-org-inner-greater-element (count &optional beg end type)
+  "Inner greater (recursive) org element."
+  (when (null count) (setq count 1))
+  (save-excursion
+    (when beg (goto-char beg))
+    (let ((element (org-element-at-point)))
+      (unless (memq (cl-first element) org-element-greater-elements)
+        (setq element (my-org-parent element)))
+      (dotimes (_ (1- count))
+        (setq element (my-org-parent element)))
+      (my-org-select-inner-element element))))
+(evil-define-text-object my-org-a-subtree (count &optional beg end type)
+  "An org subtree."
+  :type line
+  (when (null count) (setq count 1))
+  (org-with-limited-levels
+   (cond ((org-at-heading-p) (beginning-of-line))
+         ((org-before-first-heading-p) (user-error "Not in a subtree"))
+         (t (outline-previous-visible-heading 1))))
+  (when count (while (and (> count 1) (org-up-heading-safe)) (cl-decf count)))
+  (my-org-select-inner-element (org-element-at-point)))
+(evil-define-text-object my-org-inner-subtree (count &optional beg end type)
+  "Inner org subtree."
+  :type line
+  (when (null count) (setq count 1))
+  (org-with-limited-levels
+   (cond ((org-at-heading-p) (beginning-of-line))
+         ((org-before-first-heading-p) (user-error "Not in a subtree"))
+         (t (outline-previous-visible-heading 1))))
+  (when count (while (and (> count 1) (org-up-heading-safe)) (cl-decf count)))
+  (my-org-select-inner-element (org-element-at-point)))
+
+;; --- 键位: base + navigation + insert + textobjects + additional ---
+(evil-define-key 'motion org-mode-map
+  "0" 'my-org-beginning-of-line
+  "$" 'my-org-end-of-line
+  ")" 'my-org-forward-sentence
+  "(" 'my-org-backward-sentence
+  "}" 'org-forward-paragraph
+  "{" 'org-backward-paragraph
+  "gh" 'org-up-element
+  "gl" 'org-down-element
+  "gk" 'org-backward-element
+  "gj" 'org-forward-element
+  "gH" 'my-org-top)
+(evil-define-key 'normal org-mode-map
+  "I" 'my-org-insert-line
+  "A" 'my-org-append-line
+  "o" 'my-org-open-below
+  "O" 'my-org-open-above
+  "d" 'my-org-delete
+  "x" 'my-org-delete-char
+  "X" 'my-org-delete-backward-char
+  (kbd "<C-return>") 'my-org-org-insert-heading-respect-content-below
+  (kbd "<C-S-return>") 'my-org-org-insert-todo-heading-respect-content-below)
+(evil-define-key '(normal visual) org-mode-map
+  (kbd "<tab>") 'org-cycle
+  "g TAB" 'org-cycle
+  (kbd "<backtab>") 'org-shifttab
+  "<" 'my-org-<
+  ">" 'my-org->)
+(evil-define-key '(visual operator) org-mode-map
+  "ae" 'my-org-an-object
+  "ie" 'my-org-inner-object
+  "aE" 'my-org-an-element
+  "iE" 'my-org-inner-element
+  "ir" 'my-org-inner-greater-element
+  "ar" 'my-org-a-greater-element
+  "aR" 'my-org-a-subtree
+  "iR" 'my-org-inner-subtree)
+(evil-define-key 'insert org-mode-map
+  (kbd "C-t") 'org-metaright
+  (kbd "C-d") 'org-metaleft)
+(evil-define-key '(normal visual) org-mode-map
+  (kbd "M-h") 'org-metaleft
+  (kbd "M-l") 'org-metaright
+  (kbd "M-k") 'org-metaup
+  (kbd "M-j") 'org-metadown
+  (kbd "M-H") 'org-shiftmetaleft
+  (kbd "M-L") 'org-shiftmetaright
+  (kbd "M-K") 'org-shiftmetaup
+  (kbd "M-J") 'org-shiftmetadown
+  (kbd "C-S-h") 'org-shiftcontrolleft
+  (kbd "C-S-l") 'org-shiftcontrolright
+  (kbd "C-S-k") 'org-shiftcontrolup
+  (kbd "C-S-j") 'org-shiftcontroldown)
+
+;; --- org-agenda: motion 态 + 原 evil-org-agenda 键位 ---
+(evil-set-initial-state 'org-agenda-mode 'motion)
+(evil-define-key 'motion org-agenda-mode-map
+  ;; open
+  (kbd "<tab>") 'org-agenda-goto
+  (kbd "S-<return>") 'org-agenda-goto
+  "g TAB" 'org-agenda-goto
+  (kbd "RET") 'org-agenda-switch-to
+  (kbd "M-RET") 'org-agenda-recenter
+  (kbd "SPC") 'org-agenda-show-and-scroll-up
+  (kbd "<delete>") 'org-agenda-show-scroll-down
+  (kbd "<backspace>") 'org-agenda-show-scroll-down
+  ;; motion
+  "j" 'org-agenda-next-line
+  "k" 'org-agenda-previous-line
+  "gj" 'org-agenda-next-item
+  "gk" 'org-agenda-previous-item
+  "gH" 'evil-window-top
+  "gM" 'evil-window-middle
+  "gL" 'evil-window-bottom
+  (kbd "C-j") 'org-agenda-next-item
+  (kbd "C-k") 'org-agenda-previous-item
+  (kbd "[[") 'org-agenda-earlier
+  (kbd "]]") 'org-agenda-later
+  ;; manipulation
+  "J" 'org-agenda-priority-down
+  "K" 'org-agenda-priority-up
+  "H" 'org-agenda-do-date-earlier
+  "L" 'org-agenda-do-date-later
+  "t" 'org-agenda-todo
+  (kbd "M-j") 'org-agenda-drag-line-forward
+  (kbd "M-k") 'org-agenda-drag-line-backward
+  (kbd "C-S-h") 'org-agenda-todo-previousset
+  (kbd "C-S-l") 'org-agenda-todo-nextset
+  ;; undo
+  "u" 'org-agenda-undo
+  ;; actions
+  "dd" 'org-agenda-kill
+  "dA" 'org-agenda-archive
+  "da" 'org-agenda-archive-default-with-confirmation
+  "ct" 'org-agenda-set-tags
+  "ce" 'org-agenda-set-effort
+  "cT" 'org-timer-set-timer
+  "i" 'org-agenda-diary-entry
+  "a" 'org-agenda-add-note
+  "A" 'org-agenda-append-agenda
+  "C" 'org-agenda-capture
+  ;; mark
+  "m" 'org-agenda-bulk-toggle
+  "~" 'org-agenda-bulk-toggle-all
+  "*" 'org-agenda-bulk-mark-all
+  "%" 'org-agenda-bulk-mark-regexp
+  "M" 'org-agenda-bulk-unmark-all
+  "x" 'org-agenda-bulk-action
+  ;; refresh
+  "gr" 'org-agenda-redo
+  "gR" 'org-agenda-redo-all
+  ;; quit
+  "ZQ" 'org-agenda-exit
+  "ZZ" 'org-agenda-quit
+  ;; display
+  "gD" 'org-agenda-view-mode-dispatch
+  "ZD" 'org-agenda-dim-blocked-tasks
+  ;; filter
+  "sc" 'org-agenda-filter-by-category
+  "sr" 'org-agenda-filter-by-regexp
+  "se" 'org-agenda-filter-by-effort
+  "st" 'org-agenda-filter-by-tag
+  "s^" 'org-agenda-filter-by-top-headline
+  "ss" 'org-agenda-limit-interactively
+  "S" 'org-agenda-filter-remove-all
+  ;; clock
+  "I" 'org-agenda-clock-in
+  "O" 'org-agenda-clock-out
+  "cg" 'org-agenda-clock-goto
+  "cc" 'org-agenda-clock-cancel
+  "cr" 'org-agenda-clockreport-mode
+  ;; go and show
+  "." 'org-agenda-goto-today
+  "gc" 'org-agenda-goto-calendar
+  "gC" 'org-agenda-convert-date
+  "gd" 'org-agenda-goto-date
+  "gh" 'org-agenda-holidays
+  "gm" 'org-agenda-phases-of-moon
+  "gs" 'org-agenda-sunrise-sunset
+  "gt" 'org-agenda-show-tags
+  "p" 'org-agenda-date-prompt
+  "P" 'org-agenda-show-the-flagging-note
+  ;; others
+  "+" 'org-agenda-manipulate-query-add
+  "-" 'org-agenda-manipulate-query-subtract)
 
 ;; ---------- org-capture: 快速捕获 ----------
 ;; C-c c 弹出模板菜单, 选模板后快速记录, 保存到对应文件
