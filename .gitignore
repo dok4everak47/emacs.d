@@ -13,3 +13,8 @@ recentf
 .workbuddy/
 eln-cache/
 history
+
+# 编辑器备份 / 运行时数据
+*~
+org-clock-save.el
+tree-sitter/
