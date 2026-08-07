@@ -8,6 +8,19 @@
 ;; evil-nerd-commenter: gcc 注释切换
 ;;
 ;; 退出 insert 模式: C-g 或 Esc (无延迟)
+;;
+;; 注意 (2026-08 实证, emacsclient lookup-key 三层链 normal→motion→global):
+;; evil normal 模式下, 以下"默认 Emacs 键"语义已被 evil 接管, 与 vanilla 不同:
+;;   C-n / C-p → evil-paste-pop (粘贴历史轮换), 不是移动行 (移动用 j/k)
+;;   C-f / C-b → 向下/向上翻页 (evil-scroll-page-*), 不是逐字符 (用 l/h)
+;;   C-e       → 向下滚动一行, 不是行尾 (行尾用 $)
+;;   C-r       → redo 重做, 不是反向搜索 (反向搜索用 ?)
+;;   C-y       → 向上滚动一行, 不是粘贴 (粘贴用 p)
+;;   C-w       → evil 窗口操作前缀 (C-w v/s/o), 不是剪切 (剪切用 d)
+;;   C-a       → 行首 (motion 层 nil, fallback 到全局, 与 vanilla 一致)
+;; 不受影响 (normal 下仍可用): C-x 系 (打开/分屏/缓冲区/保存/退出),
+;;   M-系 (M-f/b/a/e/{/}/</>/g 词句段落文档跳转), C-s, M-%, M-u/l/c, M-w, C-k。
+;; 排查键位时按 evil normal → motion → global 三层查, 勿只看 global-set-key。
 
 ;;; Code:
 
