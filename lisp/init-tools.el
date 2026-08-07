@@ -152,5 +152,20 @@
        nil nil (0 my-dired-hidden t))))
    t)) ; append: 排在 diredfl 规则之后, 后执行覆盖
 
+;; ---------- dired-subtree: 目录树折叠 ----------
+;; i 展开/折叠子树 (接管原生 insert-subdir, 更直观), TAB 在子目录间循环
+;; 需先装 dired-subtree (MELPA)
+(use-package dired-subtree
+  :ensure t
+  :after dired
+  :bind (:map dired-mode-map
+         ("i" . dired-subtree-toggle)
+         ("TAB" . dired-subtree-cycle))
+  :config
+  ;; C-x M-o: 切换显示/隐藏 dotfiles (dired-omit-mode, 原生功能)
+  (define-key dired-mode-map (kbd "C-x M-o") #'dired-omit-mode)
+  ;; 外部新建/删除文件后, 重进 dired 自动刷新列表, 不用手动 g
+  (setq dired-auto-revert-buffer #'dired-directory-changed-p))
+
 (provide 'init-tools)
 ;;; init-tools.el ends here

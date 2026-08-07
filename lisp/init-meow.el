@@ -11,6 +11,19 @@
 ;;   SPC ?            键位表 (cheatsheet)
 ;;   SPC /            查看按键对应的命令 (keypad describe)
 ;;
+;; dired 文件管理 (2026-08 实测审计):
+;;   dired 初始进 motion 态, 字母键全穿透 → 原生键位基本全保留。
+;;   仅 3 键被 meow 接管: j/k (行为等同 dired 上下行, 无损失)、SPC (keypad,
+;;   挤掉 dired 原生"下一行" → 翻页用 C-v/M-v)。
+;;   打开: C-x d / RET 进入 / ^ 上级 / g 刷新 / v 查看 / o 另开窗口
+;;   批量: m 标记 u 取消 U 全消 → d 标删 x 执行 / D 直删 R 改名 C 复制
+;;         M chmod G chgrp O chown S 符号链接 Z 压缩 T 时间戳 !=shell =
+;;   新建: + 新目录
+;;   wdired: C-x C-q 直接编辑文件名, C-c C-c 保存 (内置)
+;;   dotfiles: C-x M-o 切换显示/隐藏 (dired-omit-mode)
+;;   目录树: i 展开/折叠子树, TAB 子目录循环 (dired-subtree, 见 init-tools.el)
+;;   自动刷新: 外部改目录后重进自动更新, 不用手动 g (dired-auto-revert-buffer)
+;;
 ;; 布局: QWERTY (官方示例)。核心差异 vs Vim/evil:
 ;;   - 先选中再操作: w 选词 → d 删除 (不是 dw)
 ;;   - 数字后置:     选中后按 2/3/4 扩展选区 (不是 2w)
