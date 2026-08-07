@@ -20,3 +20,13 @@ history
 org-clock-save.el
 tree-sitter/
 cache/
+
+# OAuth / 凭据 (org-gcal 等)
+oauth2-auto.plist
+oauth2-auto.plist~
+
+# 包运行时状态 (变动频繁, 不入库)
+persist/
+request/
+.org-id-locations
+.org-generic-id-locations
