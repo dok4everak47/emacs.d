@@ -1,4 +1,8 @@
 ;;; -*- lexical-binding: t -*-
+;;; custom.el — Customize UI 的自动写入区 (Emacs 自动维护, 见文件头注释)
+(setq custom-file (expand-file-name "custom.el" user-emacs-directory))
+(when (file-exists-p custom-file)
+  (load custom-file))
 ;;; init.el — Emacs 邮件发送配置 (多账号: Gmail + 126)
 ;;;
 ;;; ================= 邮箱账号 =================
@@ -585,21 +589,3 @@
 (require 'init-org nil t)
 (require 'init-lazycat nil t)
 ;;; init.el ends here
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(package-selected-packages
-   '(cape corfu dashboard diff-hl dired-subtree diredfl doom-themes
-	  embark-consult envrc exec-path-from-shell impatient-mode
-	  magit marginalia markdown-preview-mode meow mood-line
-	  move-text nerd-icons olivetti orderless org-modern
-	  pangu-spacing popper super-save surround symbol-overlay
-	  treemacs treesit-auto vertico vterm vundo yasnippet-snippets)))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
