@@ -568,6 +568,9 @@
   :ensure t
   :after org
   :config
+  ;; token 用 plstore 加密存储, 需要本地 GPG 密钥
+  ;; 首次配置: gpg --batch --gen-key 生成无口令密钥, 邮箱固定 emacs-plstore@localhost
+  (setq plstore-encrypt-to '("emacs-plstore@localhost"))
   ;; 加载 OAuth 凭据 (文件不存在则跳过, 不报错)
   (let ((cred (expand-file-name "gcal-client.el" user-emacs-directory)))
     (when (file-exists-p cred)
@@ -578,7 +581,8 @@
     (org-gcal-reload-client-id-secret))
   ;; 日历 → org 文件映射 (primary = Google 主日历, 即 Gmail 地址的默认日历)
   (setq org-gcal-fetch-file-alist
-        '(("primary" . "~/org/gcal.org"))))
+        '(("primary" . "~/org/gcal.org")
+          ("zh.china#holiday@group.v.calendar.google.com" . "~/org/gcal-holidays.org"))))
 
 ;; ---------- 全局快捷键 ----------
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览
