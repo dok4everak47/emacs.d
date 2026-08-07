@@ -23,8 +23,12 @@
   (org-default-notes-file "~/org/inbox.org") ; capture 默认文件
   (org-agenda-files '("~/org"))             ; agenda 搜索目录
   (org-log-done 'time)                      ; 完成任务时记录时间戳
-  (org-todo-keywords                        ; 任务状态流转
-   '((sequence "TODO(t)" "DOING(i)" "HOLD(h)" "|" "DONE(d)" "CANC(c)")))
+  (org-todo-keywords                        ; 任务状态流转 (GTD)
+   ;; NEXT=下一步行动 / TODO=待澄清 / DOING=进行中 / WAIT=等待别人
+   ;; HOLD=暂停 / DONE=完成 / CANC=取消 / SOMEDAY=将来也许 (| 后=关闭状态,
+   ;; 不进待办视图; SOMEDAY 放单独文件 someday.org, 周回顾时翻)
+   '((sequence "NEXT(n)" "TODO(t)" "DOING(i)" "WAIT(w)" "HOLD(h)"
+               "|" "DONE(d)" "CANC(c)" "SOMEDAY(s)")))
   (org-use-fast-todo-selection t)           ; 切换状态时用快捷键选择
   :config
   ;; org-tempo: 结构模板展开
@@ -55,11 +59,14 @@
                      (45 . "–")            ; - → –
                      (42 . "•")))           ; * → •
   (org-modern-todo-faces
-   `(("TODO"  . (:background "#e06c75" :foreground "#282c34" :weight bold))
+   `(("NEXT"   . (:background "#61afef" :foreground "#282c34" :weight bold))
+     ("TODO"  . (:background "#e06c75" :foreground "#282c34" :weight bold))
      ("DOING" . (:background "#e5c07b" :foreground "#282c34" :weight bold))
+     ("WAIT"  . (:background "#d19a66" :foreground "#282c34" :weight bold))
      ("HOLD"  . (:background "#c678dd" :foreground "#282c34" :weight bold))
      ("DONE"  . (:background "#98c379" :foreground "#282c34" :weight bold))
-     ("CANC"  . (:background "#5c6370" :foreground "#282c34" :weight bold)))))
+     ("CANC"  . (:background "#5c6370" :foreground "#282c34" :weight bold))
+     ("SOMEDAY" . (:background "#5c6370" :foreground "#abb2bf" :weight bold)))))
 
 ;; ---------- org: evil 键位 (原 evil-org 移植, 该包 2022 停更 → 自维护) ----------
 ;; evil-collection 的 org 支持故意保持基础 (官方注释: NOT intended to
@@ -584,6 +591,33 @@
   (setq org-gcal-fetch-file-alist
         '(("primary" . "~/org/gcal.org")
           ("zh.china#holiday@group.v.calendar.google.com" . "~/org/gcal-holidays.org"))))
+
+;; ---------- org-refile: 收集箱 → 项目归档 ----------
+;; 整理流程: C-c c t 捕获 → inbox.org → 光标在条目上 C-c C-w 归档到项目/领域
+;; 归档目标 = 所有 agenda 文件的 1-2 级标题 (projects.org 的项目名正好是 1 级)
+;; 用 org-refile-use-outline-path 显示"文件/标题"路径, 选起来更清楚
+(setq org-refile-targets '((org-agenda-files :maxlevel . 2))
+      org-refile-use-outline-path 'file
+      org-outline-path-complete-in-steps nil)
+
+;; ---------- 自定义 agenda 视图 ----------
+;; C-c a n = 人生管理主视图: 本周日程 (含习惯图) + 所有未完成任务
+;; 其他内置视图: C-c a a (完整 agenda) / C-c a t (所有 TODO)
+(setq org-agenda-custom-commands
+      '(("n" "本周 + 待办"
+         ((agenda "" ((org-agenda-span 7)
+                      (org-agenda-overriding-header "本周日程")))
+          (todo "NEXT|TODO|DOING|HOLD"
+                ((org-agenda-overriding-header "未完成任务")))))
+        ("w" "等待中"
+         ((todo "WAIT"
+                ((org-agenda-overriding-header "等待别人回复 (WAIT)")))))))
+
+;; ---------- org-habit: 习惯追踪 ----------
+;; 习惯条目: TODO + SCHEDULED: <日期 .+1d> (每天) / .+1w (每周)
+;; 在 agenda 视图里显示习惯图 (●●○○○○○), 标记 DONE 自动推进到下一周期
+(require 'org-habit)
+(setq org-habit-graph-column 80)          ; 习惯图起始列 (给任务名留空间)
 
 ;; ---------- 全局快捷键 ----------
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览

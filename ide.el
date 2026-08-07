@@ -118,11 +118,11 @@
 (use-package dashboard
   :ensure t
   :init
-  ;; Navigator 按钮: 收邮件 / 写邮件 / 文件树 / 退出
+  ;; Navigator 按钮分两行: 第一行 = 邮件 + IDE, 第二行 = 人生管理 (org)
   ;; (fboundp 守卫: nerd-icons 未加载时回退到文字图标)
   (setq dashboard-navigator-buttons
         `(((,(if (fboundp 'nerd-icons-octicon)
-                (nerd-icons-octicon "nf-oct-mail") "✉")
+                 (nerd-icons-octicon "nf-oct-mail") "✉")
             "收邮件" "Gnus 收邮件"
             (lambda (&rest _) (gnus)))
            (,(if (fboundp 'nerd-icons-octicon)
@@ -140,7 +140,28 @@
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-sign_out") "🚪")
             "退出" "退出 Emacs"
-            (lambda (&rest _) (save-buffers-kill-terminal))))))
+            (lambda (&rest _) (save-buffers-kill-terminal))))
+          ;; 第二行: 人生管理 (org)
+          ((,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-calendar") "📅")
+            "日程" "人生管理主视图: 本周日程 + 待办"
+            (lambda (&rest _) (org-agenda nil "n")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-plus") "✚")
+            "捕获" "快速捕获任务/笔记 (C-c c)"
+            (lambda (&rest _) (org-capture)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-inbox") "📥")
+            "收件箱" "打开收集箱 inbox.org"
+            (lambda (&rest _) (find-file "~/org/inbox.org")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-repo") "🗂")
+            "项目" "打开项目树 projects.org"
+            (lambda (&rest _) (find-file "~/org/projects.org")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-book") "📔")
+            "日记" "打开日记 journal.org"
+            (lambda (&rest _) (find-file "~/org/journal.org"))))))
   (dashboard-setup-startup-hook)
   :custom
   (dashboard-startup-banner 'logo)
