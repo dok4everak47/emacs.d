@@ -589,7 +589,14 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(package-selected-packages nil))
+ '(package-selected-packages
+   '(cape corfu dashboard diff-hl diredfl doom-themes embark-consult
+	  envrc evil-collection evil-nerd-commenter evil-surround
+	  exec-path-from-shell impatient-mode magit marginalia
+	  markdown-preview-mode mood-line move-text nerd-icons
+	  olivetti orderless org-modern pangu-spacing popper
+	  super-save symbol-overlay treemacs treesit-auto vertico
+	  vterm vundo yasnippet-snippets)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

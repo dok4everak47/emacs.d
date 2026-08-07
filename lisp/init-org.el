@@ -550,6 +550,36 @@
       org-clock-persist t)                    ; 重启 Emacs 后恢复打卡状态
 (org-clock-persistence-insinuate)
 
+;; ---------- org-gcal: Google Calendar 双向同步 ----------
+;; 把 Google 日历事件拉进 ~/org/gcal.org (随 agenda 一起显示),
+;; 在 org 里改/建条目也能推回 Google 日历。
+;; 凭据: 填在 gcal-client.el (gitignore, 不入库) — 申请步骤见该文件头注释
+;; 用法:
+;;   M-x org-gcal-fetch         拉取日历 → ~/org/gcal.org (增量, 保留 org 侧修改)
+;;   M-x org-gcal-sync          拉取 + 把 org 侧修改推回日历
+;;   M-x org-gcal-post-at-point 把光标处的 org 条目作为新事件推送到日历
+;;   M-x org-gcal-delete-at-point 删除光标处条目对应的日历事件
+;;   M-x org-gcal-sync-tokens-clear  重置同步 token (换日历/出问题时)
+;; 首次 fetch 会打开浏览器做 Google OAuth 授权, token 存 ~/.emacs.d/org-gcal/
+;; 新增日历: 在 fetch-file-alist 里加 ("日历ID" . "~/org/gcal-xxx.org")
+;;   日历 ID 获取: Google Calendar 网页 → 设置 → 日历集成 → 日历 ID
+;;   主日历 ID 固定是 "primary" (或自己的 Gmail 地址)
+(use-package org-gcal
+  :ensure t
+  :after org
+  :config
+  ;; 加载 OAuth 凭据 (文件不存在则跳过, 不报错)
+  (let ((cred (expand-file-name "gcal-client.el" user-emacs-directory)))
+    (when (file-exists-p cred)
+      (load cred)))
+  ;; 有凭据才注册 OAuth provider; 没有时静默, 配置好重启即生效
+  (when (and (boundp 'org-gcal-client-id) org-gcal-client-id
+             (boundp 'org-gcal-client-secret) org-gcal-client-secret)
+    (org-gcal-reload-client-id-secret))
+  ;; 日历 → org 文件映射 (primary = Google 主日历, 即 Gmail 地址的默认日历)
+  (setq org-gcal-fetch-file-alist
+        '(("primary" . "~/org/gcal.org"))))
+
 ;; ---------- 全局快捷键 ----------
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览
 (global-set-key (kbd "C-c c") #'org-capture)        ; 快速捕获
