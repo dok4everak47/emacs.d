@@ -581,7 +581,7 @@
 (require 'init-term nil t)
 (require 'init-server nil t)   ; 服务器管理 (TRAMP + vterm), 清单在 servers.el
 (require 'init-dev nil t)
-(require 'init-evil nil t)
+(require 'init-meow nil t)
 (require 'init-org nil t)
 (require 'init-lazycat nil t)
 ;;; init.el ends here
@@ -592,11 +592,10 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    '(cape corfu dashboard diff-hl diredfl doom-themes embark-consult
-	  envrc evil-collection evil-nerd-commenter evil-surround
-	  exec-path-from-shell impatient-mode magit marginalia
-	  markdown-preview-mode mood-line move-text nerd-icons
+	  envrc exec-path-from-shell impatient-mode magit marginalia
+	  markdown-preview-mode meow mood-line move-text nerd-icons
 	  olivetti orderless org-modern pangu-spacing popper
-	  super-save symbol-overlay treemacs treesit-auto vertico
+	  super-save surround symbol-overlay treemacs treesit-auto vertico
 	  vterm vundo yasnippet-snippets)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.

@@ -1,8 +1,19 @@
-;;; ide.el — VSCode 风格 IDE 外观层
+;;; ide.el — VSCode 风格 IDE 外观层 -*- lexical-binding: t -*-
 ;;;
 ;;; 独立于邮件配置 (init.el)。不想要时: 删掉本文件 + init.el 末尾两行即可还原。
 ;;; 依赖: 网络可访问清华 ELPA 镜像 (首次加载自动安装缺失包)。
 ;;; 注意: 本文件不启用 native-comp (见 early-init.el), 包走字节码, 功能不受影响。
+
+;; 编译期声明 (包/内置模块加载后变量才有定义)
+(defvar treemacs-file-event-mode nil)
+(defvar treemacs-project-follow-mode nil)
+(defvar display-line-numbers-type nil)
+(declare-function treemacs "treemacs")
+(declare-function treemacs-select-window "treemacs")
+(declare-function mood-line-mode "mood-line")
+(declare-function dashboard-setup-startup-hook "dashboard")
+(declare-function doom-themes-treemacs-config "doom-themes")
+(declare-function doom-themes-visual-bell-config "doom-themes")
 
 ;; ---------- 包管理: 内置 package.el + 清华镜像 ----------
 (require 'package)
@@ -46,13 +57,8 @@
         treemacs-follow-mode t          ; 光标切 buffer 时文件树自动跟随
         treemacs-file-event-mode t      ; 外部文件变更自动刷新
         treemacs-project-follow-mode t)
-  ;; evil 集成: treemacs 的单字母键 (s/d/r/u/m/h/l 等) 被 evil normal state
-  ;; 覆盖, evil-collection 无 treemacs 模块。用 emacs state 让原生键全部生效;
-  ;; treemacs 自带 n/p 上下、h/l 折叠展开, 不依赖 evil j/k。
-  ;; 注意: ide.el 在 init-evil.el 之前加载, 此时 evil 尚未 featurep,
-  ;; 必须用 with-eval-after-load 延迟到 evil 加载后再设置。
-  (with-eval-after-load 'evil
-    (evil-set-initial-state 'treemacs-mode 'emacs))
+  ;; treemacs 单字母键 (s/d/r/u/m/h/l 等) 不被 meow 占用: treemacs 走自定义
+  ;; EMACS state (见 init-meow.el), meow 绑定全部关闭, 原生键直接生效。
   (global-set-key (kbd "C-c t t") #'treemacs)          ; 打开/关闭文件树
   (global-set-key (kbd "C-c t d") #'treemacs-select-window))
 
@@ -80,7 +86,7 @@
   :bind (("C-c e e" . eglot))
   :config
   (setq eglot-autoshutdown t
-        eglot-confirm-server-initiated-edits nil)
+        eglot-confirm-server-edits nil)
   ;; LSP server 注册 (eglot 默认不知道这些 server)
   (with-eval-after-load 'eglot
     (dolist (entry '((php-mode . ("phpactor" "language-server"))

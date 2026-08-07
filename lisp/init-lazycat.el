@@ -100,7 +100,7 @@
   (markdown-live-preview-window-function #'markdown-live-preview-window-eww)
   (markdown-live-preview-delete-export 'delete-on-destroy)
   :config
-  ;; 显式关闭预览: C-c C-c q (evil 的 q 是宏录制, 不能用来关预览)
+  ;; 显式关闭预览: C-c C-c q (meow 的 q 是 meow-quit, 不能用来关预览)
   ;; markdown-live-preview-mode 是 buffer-local 变量, 只在源码 buffer 为 t;
   ;; 在预览窗口 (*eww*) 里是 nil → 必须通过 markdown-live-preview-source-buffer
   ;; 找到源码 buffer 再关闭, 否则在预览窗口按 q 会"没反应"。
