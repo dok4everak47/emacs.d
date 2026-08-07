@@ -567,15 +567,16 @@
 (use-package org-gcal
   :ensure t
   :after org
-  :config
+  :init
   ;; token 用 plstore 加密存储, 需要本地 GPG 密钥
   ;; 首次配置: gpg --batch --gen-key 生成无口令密钥, 邮箱固定 emacs-plstore@localhost
   (setq plstore-encrypt-to '("emacs-plstore@localhost"))
-  ;; 加载 OAuth 凭据 (文件不存在则跳过, 不报错)
+  ;; 加载 OAuth 凭据 — 必须在 require 之前 (包加载时检查 client-id/secret, 否则启动警告)
   (let ((cred (expand-file-name "gcal-client.el" user-emacs-directory)))
     (when (file-exists-p cred)
       (load cred)))
-  ;; 有凭据才注册 OAuth provider; 没有时静默, 配置好重启即生效
+  :config
+  ;; 有凭据才注册 OAuth provider (org-gcal 加载后自行调用 reload 也可, 这里兜底)
   (when (and (boundp 'org-gcal-client-id) org-gcal-client-id
              (boundp 'org-gcal-client-secret) org-gcal-client-secret)
     (org-gcal-reload-client-id-secret))
