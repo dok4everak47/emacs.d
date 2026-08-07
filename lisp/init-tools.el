@@ -158,6 +158,7 @@
 (use-package dired-subtree
   :ensure t
   :after dired
+  :demand t  ; dired 一加载立即执行本块 — 不加则 :config (C-x M-o/auto-revert) 会被 defer 到命令首次触发, 干净启动不生效
   :bind (:map dired-mode-map
          ("i" . dired-subtree-toggle)
          ("TAB" . dired-subtree-cycle))
