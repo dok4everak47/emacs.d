@@ -18,7 +18,7 @@
   (("C-c v" . vterm)                        ; 当前窗口打开终端
    ("C-c V" . vterm-other-window))          ; 新窗口打开终端
   :custom
-  (vterm-maximum-scrollback 10000)          ; 回滚行数
+  (vterm-max-scrollback 10000)             ; 回滚行数 (变量名 vterm-max-scrollback, 无 maximum)
   (vterm-shell (or (executable-find "bash")
                    "/bin/bash"))            ; 用 bash (nix 5.3 优先)
   (vterm-term-environment-variable "TERM=xterm-256color")

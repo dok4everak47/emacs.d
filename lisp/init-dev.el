@@ -24,8 +24,7 @@
         ("C-c ! l" . flymake-show-buffer-diagnostics)) ; 错误列表
   :custom
   (flymake-fringe-indicator-position 'left-fringe) ; 左侧 fringe 显示标记
-  (flymake-margin-enabled t)                  ; margin 也显示标记
-  (flymake-margin-indicator-position 'left-margin)
+  (flymake-margin-indicator-position 'left-margin) ; margin 也显示标记 (非 nil 即启用, 无 flymake-margin-enabled 变量)
   :config
   ;; 编程语言 major-mode 启动时自动开 flymake
   ;; (eglot 启动时会自动启用 flymake, 这里兜底非 LSP 场景)
@@ -34,10 +33,12 @@
 ;; ---------- flymake 错误列表美化 ----------
 ;; flymake-show-buffer-diagnostics 弹出的列表默认样式简陋,
 ;; 用 consult 集成后可以模糊搜索 + 预览跳转
+;; 坑: 必须嵌套 with-eval-after-load — 只守卫 fboundp 不够,
+;; flymake-mode-map 在 flymake 未加载时是 void-variable (2026-08 实测炸过)
 (with-eval-after-load 'consult
-  ;; 如果安装了 consult, 用 consult-flymake 替代默认跳转
   (when (fboundp 'consult-flymake)
-    (define-key flymake-mode-map (kbd "C-c ! f") #'consult-flymake)))
+    (with-eval-after-load 'flymake
+      (define-key flymake-mode-map (kbd "C-c ! f") #'consult-flymake))))
 
 ;; ---------- impatient-mode: HTML/CSS 实时预览 ----------
 ;; 编辑 HTML/CSS 时在浏览器实时刷新 (类似 VSCode Live Server)
@@ -47,7 +48,7 @@
   :ensure t
   :commands (impatient-mode)
   :custom
-  (impatient-default-delay 0.5)              ; 0.5s 防抖
+  (impatient-mode-delay 0.5)               ; 0.5s 防抖 (变量名 impatient-mode-delay)
   :config
   ;; impatient 需要 simple-httpd, 懒启动 (首次开 impatient-mode 时才起)
   (use-package simple-httpd

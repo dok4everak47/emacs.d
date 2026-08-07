@@ -41,7 +41,7 @@
   :custom
   (vundo-glyph-alist vundo-unicode-symbols) ; 用清晰的 Unicode 箭头而非 emoji
   (vundo-compact-display t)
-  (vundo-window-min-height 12))
+  (vundo-window-max-height 12)) ; 窗口最大高度 (原 vundo-window-min-height 拼错, 包无此变量, 从未生效)
 
 ;; ---------- symbol-overlay: 单文件重构 ----------
 (use-package symbol-overlay
