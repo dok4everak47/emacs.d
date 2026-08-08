@@ -75,6 +75,11 @@
   :config
   (require 'consult)
   (require 'projectile)
+  ;; ⚠️ consult-projectile-use-projectile-switch-project 是 defvar 不是 defcustom,
+  ;; use-package :custom 对 defvar 无效 (customize-set-variable 跳过非 defcustom)。
+  ;; 必须用 :config + setq。t = 切项目走 projectile-switch-project
+  ;; (项目根 + projectile-switch-project-action); nil = 走 consult-projectile--file
+  (setq consult-projectile-use-projectile-switch-project t)
   ;; 包装: 调 consult-projectile (包入口) 但 :around advice 动态改 :prompt
   ;; 不绕过包入口, 沿用它正确的 action 分发 (避免直接调 consult--multi
   ;; 带来的 :action 分发坑: Args out of range)。

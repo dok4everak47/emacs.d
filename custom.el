@@ -10,13 +10,14 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    '(cape consult consult-projectile corfu dashboard diff-hl
-   	  dired-sidebar dired-subtree diredfl doom-themes
-   	  embark-consult envrc exec-path-from-shell impatient-mode
-   	  magit marginalia markdown-preview-mode meow mood-line
-   	  move-text nerd-icons nerd-icons-dired olivetti
-   	  orderless org-modern pangu-spacing popper projectile
-   	  super-save surround symbol-overlay treesit-auto vertico
-   	  vterm vundo yasnippet-snippets)))
+	  dired-sidebar dired-subtree diredfl doom-themes
+	  embark embark-consult envrc exec-path-from-shell
+	  impatient-mode magit marginalia markdown-mode
+	  markdown-preview-mode meow mood-line move-text nerd-icons
+	  nerd-icons-dired olivetti orderless org-gcal org-modern
+	  pangu-spacing php-mode popper projectile simple-httpd
+	  super-save surround symbol-overlay treesit-auto vertico
+	  vterm vundo which-key yasnippet yasnippet-snippets)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

@@ -104,28 +104,16 @@
 (use-package projectile
   :ensure t
   :demand t
-  :init
-  (projectile-mode 1)                        ; 全局 minor mode (项目检测)
   :custom
   (projectile-enable-caching t)              ; 大项目文件列表缓存
   (projectile-completion-system 'default)    ; 让 consult 接管候选 UI
   :config
+  ;; 全局 minor mode 放 :config 而非 :init — 确保 :custom 先执行
+  ;; (projectile-mode 启用时会读 projectile-completion-system)
+  (projectile-mode 1)
   ;; 从内置 project.el 已知项目导入 (projectile 不会自动继承)
   (when (fboundp 'projectile-import-known-projects)
     (ignore-errors (projectile-import-known-projects))))
-
-;; ---------- consult-projectile (consult + projectile 集成) ----------
-;; 用 consult 风格 (vertico 候选 + orderless 模糊) 选项目/文件/buffer。
-;; 命令: C-c p p=切项目, C-c p f=项目内找文件, C-c p r=recentf,
-;; C-c p b=切项目 buffer — 见 init-completion.el 的 :bind 补充。
-(use-package consult-projectile
-  :ensure t
-  :after (consult projectile)
-  :demand t
-  :custom
-  ;; 切项目后默认动作 (consult-projectile-switch-project 用):
-  ;; 'projectile-find-file (打开项目并立刻找文件) — VSCode 切项目即看文件
-  (consult-projectile-use-projectile-switch-project t))
 
 ;; ---------- 状态栏 (VSCode 底部状态条: 文件名/修改/git/位置) ----------
 (use-package mood-line
@@ -245,7 +233,7 @@
   (dashboard-banner-logo-title "Welcome to Emacs")
   (dashboard-items '((recents . 10)
                      (projects . 5)))
-  (dashboard-projects-backend 'project-el)
+  (dashboard-projects-backend 'projectile)
   (dashboard-startupify-list
    '(dashboard-insert-banner
      dashboard-insert-newline
