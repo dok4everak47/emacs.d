@@ -99,6 +99,9 @@
   (markdown-command (list "python3" (expand-file-name "md2html.py" user-emacs-directory)))
   (markdown-live-preview-window-function #'markdown-live-preview-window-eww)
   (markdown-live-preview-delete-export 'delete-on-destroy)
+  ;; 预览窗口位置: 'right = 预览在右侧 (左右并排, VS Code 风格);
+  ;; 想改回上下堆叠(预览在下方)就把 'right 改成 'below
+  (markdown-split-window-direction 'right)
   :config
   ;; 显式关闭预览: C-c C-c q (meow 的 q 是 meow-quit, 不能用来关预览)
   ;; markdown-live-preview-mode 是 buffer-local 变量, 只在源码 buffer 为 t;
@@ -126,20 +129,194 @@
       ;; 删除该窗口, 回到干净布局
       (when (window-live-p preview-win)
         (delete-window preview-win))))
+  ;; VS Code 式预览追踪: 光标在源码移动/编辑时, 预览窗口自动滚到对应章节
+  ;; 定位: 先找光标所在章节标题的纯文本在预览 buffer 里的位置;
+  ;; 找不到 (标题带行内符号等) 就按源码/预览字符比例粗略跟随。
+  (defun my-md-preview-current-heading ()
+    "返回光标所在章节的标题纯文本 (去掉 markdown 符号), 不在任何标题下返回 nil.
+光标停在标题行本身时取当前行 (而非上一个标题); 否则向上找最近的标题."
+    (save-excursion
+      (let (txt)
+        ;; 先看当前行是不是标题
+        (save-excursion
+          (beginning-of-line)
+          (when (looking-at "^[ \t]*#\\{1,6\\}[ \t]+\\(.*\\)$")
+            (setq txt (match-string-no-properties 1))))
+        ;; 不是就向上找最近的标题
+        (unless txt
+          (save-excursion
+            (goto-char (line-beginning-position))
+            (when (re-search-backward "^[ \t]*#\\{1,6\\}[ \t]+\\(.*\\)$" nil t)
+              (setq txt (match-string-no-properties 1)))))
+        (when txt
+          ;; 行内 markdown: [a](url) → a, 去掉 * ` _
+          (setq txt (replace-regexp-in-string "\\[[^]]*\\]([^)]*)" "\\1" txt))
+          (setq txt (replace-regexp-in-string "[*_`]" "" txt))
+          (setq txt (replace-regexp-in-string "[ \t]+" " " txt))
+          (string-trim txt)))))
+
+  (defun my-markdown-preview-follow ()
+    "让预览窗口跟随源码光标所在章节滚动 (VS Code 效果)."
+    (when (and (buffer-live-p markdown-live-preview-buffer)
+               (eq (current-buffer) (window-buffer (selected-window))))
+      (let ((preview-win (get-buffer-window markdown-live-preview-buffer t)))
+        (when (window-live-p preview-win)
+          (let ((heading (my-md-preview-current-heading))
+                (src-len (max 1 (- (point-max) (point-min))))
+                (src-pos (- (point) (point-min))))
+            (with-selected-window preview-win
+              (goto-char (point-min))
+              (let ((target (and heading
+                                 ;; 精确匹配: 行首到行尾整行等于 heading
+                                 ;; (避免 "FastAPI" 里的 API 子串误匹配)
+                                 (re-search-forward
+                                  (format "^%s$"
+                                          (regexp-quote heading))
+                                  nil t))))
+                (if target
+                    (goto-char target)
+                  ;; 兜底: 按字符比例粗略定位
+                  (let ((pv-len (max 1 (- (point-max) (point-min)))))
+                    (goto-char (point-min))
+                    (forward-char (round (* (/ src-pos src-len) pv-len)))))
+                (recenter 1))))))))
+
+  ;; 反向跟随: 光标在预览窗口滚动时, 源码窗口滚到对应章节 (VS Code 双向同步)
+  (defun my-md-preview-current-heading-from-preview ()
+    "从预览 buffer 当前窗口顶部位置反推对应章节标题, 返回标题纯文本.
+策略: 窗口顶部在预览 buffer 的字符比例 → 源码 buffer 同比例位置 → 向上找最近章节标题."
+    (let* ((top (window-start (selected-window)))
+           (pv-len (max 1 (- (point-max) (point-min))))
+           (ratio (/ (float top) pv-len))
+           (src markdown-live-preview-source-buffer))
+      (when (and src (buffer-live-p src))
+        (with-current-buffer src
+          (let* ((src-len (- (point-max) (point-min)))
+                 (src-pos (round (* ratio src-len))))
+            (save-excursion
+              (goto-char (min src-pos (point-max)))
+              ;; 向上找最近的 markdown 标题行
+              (when (re-search-backward "^[ \t]*#\\{1,6\\}[ \t]+\\(.*\\)$" nil t)
+                (let ((txt (match-string-no-properties 1)))
+                  (setq txt (replace-regexp-in-string "\\[[^]]*\\]([^)]*)" "\\1" txt))
+                  (setq txt (replace-regexp-in-string "[*_`]" "" txt))
+                  (setq txt (replace-regexp-in-string "[ \t]+" " " txt))
+                  (string-trim txt)))))))))
+
+  (defun my-markdown-preview-reverse-follow ()
+    "光标在预览窗口时, 让源码窗口滚到对应章节 (VS Code 双向同步)."
+    (when (and (boundp 'markdown-live-preview-source-buffer)
+               (buffer-live-p markdown-live-preview-source-buffer)
+               (eq (current-buffer) (window-buffer (selected-window))))
+      (let ((src markdown-live-preview-source-buffer)
+            (heading (my-md-preview-current-heading-from-preview)))
+        (when (and src heading)
+          (let ((src-win (get-buffer-window src t)))
+            (when (window-live-p src-win)
+              (with-selected-window src-win
+                (goto-char (point-min))
+                (when (re-search-forward
+                       (concat "^[ \t]*#\\{1,6\\}[ \t]+"
+                               (regexp-quote heading)
+                               "[ \t]*$")
+                       nil t)
+                  (recenter 1)))))))))
+
+  ;; 触控板/滚轮 → 移动光标 (配合预览跟随; 只在预览开着时生效, 关掉预览恢复普通滚动)
+  ;; 实测: macOS 触控板双指下滑(看下文)触发 wheel-down → next-line (2026-08 对调过)
+  (defvar my-md-preview-wheel-map
+    (let ((map (make-sparse-keymap)))
+      (define-key map [wheel-up] #'previous-line)
+      (define-key map [wheel-down] #'next-line)
+      (define-key map [vertical-wheel-up] #'previous-line)
+      (define-key map [vertical-wheel-down] #'next-line)
+      map)
+    "预览跟随辅助: 触控板滚动时移动光标的键位.")
+
+  (define-minor-mode my-md-preview-wheel-mode
+    "预览跟随辅助: 触控板滚动改为移动光标 (方向与普通滚动一致, 光标动 → 预览跟随)."
+    :lighter " 🖱F"
+    :keymap my-md-preview-wheel-map)
+
+  (add-hook 'markdown-live-preview-mode-hook
+            (lambda ()
+              (if markdown-live-preview-mode
+                  (progn
+                    (add-hook 'post-command-hook #'my-markdown-preview-follow nil t)
+                    (my-md-preview-wheel-mode 1))
+                (remove-hook 'post-command-hook #'my-markdown-preview-follow t)
+                (my-md-preview-wheel-mode -1))))
   (define-key markdown-mode-command-map (kbd "q") #'my-markdown-preview-close)
   ;; 预览 buffer (*eww*) 也绑定 q / C-c C-c q → 关闭 (只影响 live-preview 的
   ;; eww buffer, 用 buffer-local keymap, 不影响普通网页浏览)
+  (defvar-local my-md-preview-font-scale 1.0
+    "当前预览 buffer 的字体缩放倍率 (1.0 = 默认).")
+  (defvar-local my-md-preview-font-remaps nil
+    "当前预览 buffer 的 face-remap 句柄列表 (清理用).")
+
+  (defun my-md-preview-font-zoom (delta)
+    "预览 buffer 字体缩放, DELTA 为倍率增量 (如 0.1 放大, -0.1 缩小)."
+    (let ((scale (max 0.5 (min 2.5 (+ (or my-md-preview-font-scale 1.0) delta)))))
+      (setq my-md-preview-font-scale scale)
+      (dolist (h my-md-preview-font-remaps)
+        (face-remap-remove-relative h))
+      (setq my-md-preview-font-remaps
+            (mapcar
+             (lambda (f)
+               (let ((h (face-attribute f :height nil 'default)))
+                 (face-remap-add-relative
+                  f
+                  `(:height ,(if (floatp h) (* h scale) scale)))))
+             '(default shr-h1 shr-h2 shr-h3 shr-h4 shr-h5 shr-h6
+                      shr-code shr-text shr-link)))
+      (message "预览字体: %.2fx" scale)))
+
+  (defun my-md-preview-font-zoom-in ()
+    "预览字体放大 10%."
+    (interactive)
+    (my-md-preview-font-zoom 0.1))
+
+  (defun my-md-preview-font-zoom-out ()
+    "预览字体缩小 10%."
+    (interactive)
+    (my-md-preview-font-zoom -0.1))
+
   (defun my-markdown-preview-eww-keys (&rest _args)
-    "给 live-preview 的 eww buffer 加 buffer-local 关闭绑定."
-    (when (and (boundp 'markdown-live-preview-buffer)
-               (buffer-live-p markdown-live-preview-buffer))
-      (with-current-buffer markdown-live-preview-buffer
-        (let ((map (make-sparse-keymap)))
-          (set-keymap-parent map (current-local-map))
-          (define-key map (kbd "q") #'my-markdown-preview-close)
-          (define-key map (kbd "C-c C-c q") #'my-markdown-preview-close)
-          (use-local-map map)))))
-  (advice-add 'markdown-live-preview-mode :after #'my-markdown-preview-eww-keys))
+    "给 live-preview 的 eww buffer 加 buffer-local 绑定: 关闭键 + 滚动动光标.
+从源码 buffer 或 eww buffer 调用均可 (eww 每次渲染后都会重置 keymap,
+所以同时挂在 eww-after-render-hook 上, 渲染完成自动重挂)."
+    (let ((pv (cond
+               ((and (boundp 'markdown-live-preview-buffer)
+                     (buffer-live-p markdown-live-preview-buffer))
+                markdown-live-preview-buffer)
+               ((and (boundp 'markdown-live-preview-source-buffer)
+                     (buffer-local-value 'markdown-live-preview-source-buffer
+                                         (current-buffer)))
+                (current-buffer)))))
+      (when (and pv (buffer-live-p pv))
+        (with-current-buffer pv
+          ;; 预览文本自动换行 (显示层软换行, 单词边界断行; 不改变 buffer 内容)
+          (visual-line-mode 1)
+          (setq-local word-wrap t)
+          (setq-local truncate-lines nil)
+          ;; 反向跟随: 光标在预览窗口动时, 源码滚到对应章节
+          (add-hook 'post-command-hook #'my-markdown-preview-reverse-follow nil t)
+          (let ((map (make-sparse-keymap)))
+            (set-keymap-parent map (current-local-map))
+            (define-key map (kbd "q") #'my-markdown-preview-close)
+            (define-key map (kbd "C-c C-c q") #'my-markdown-preview-close)
+            ;; 预览字体缩放 (只影响预览窗口)
+            (define-key map (kbd "C-c C-c +") #'my-md-preview-font-zoom-in)
+            (define-key map (kbd "C-c C-c -") #'my-md-preview-font-zoom-out)
+            ;; 预览窗口里触控板滚动也移动光标 (与源码 wheel-map 同向)
+            ;; macOS 触控板发 vertical-wheel-* 事件, 普通滚轮发 wheel-* 事件, 都绑上
+            (define-key map [wheel-up] #'previous-line)
+            (define-key map [wheel-down] #'next-line)
+            (define-key map [vertical-wheel-up] #'previous-line)
+            (define-key map [vertical-wheel-down] #'next-line)
+            (use-local-map map))))))
+  (advice-add 'markdown-live-preview-mode :after #'my-markdown-preview-eww-keys)
+  (add-hook 'eww-after-render-hook #'my-markdown-preview-eww-keys))
 
 ;; ---------- move-text: 整行上下移动 ----------
 (use-package move-text

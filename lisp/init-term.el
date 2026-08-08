@@ -21,7 +21,10 @@
   (vterm-max-scrollback 10000)             ; 回滚行数 (变量名 vterm-max-scrollback, 无 maximum)
   (vterm-shell (or (executable-find "zsh")
                    "/bin/zsh"))             ; 用 zsh (跟系统一致, nix zsh 优先)
-  (vterm-term-environment-variable "TERM=xterm-256color")
+  ;; ⚠️ 必须是裸值！vterm.el 内部会自己拼 "TERM=" 前缀；
+  ;; 写 "TERM=xterm-256color" 会变成 TERM=TERM=xterm-256color，
+  ;; zsh 启动时找不到 terminfo → "can't find terminal definition" 报错
+  (vterm-term-environment-variable "xterm-256color")
   (vterm-kill-buffer-on-exit t)            ; 退出终端自动关 buffer
   :config
   ;; 退出 vterm buffer 时不杀整个窗口 (避免误关编辑器窗口)

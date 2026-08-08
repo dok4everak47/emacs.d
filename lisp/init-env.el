@@ -79,6 +79,9 @@
                (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)))
   :config
   (require 'treesit)  ; 确保 tree-sitter 核心已加载 (batch 下需显式)
+  ;; 高亮级别 4: 启用 function-call / variable-use 等细化 face,
+  ;; 函数调用、函数定义、变量、字符串各自独立颜色 (2026-08 加)
+  (setq treesit-font-lock-level 4)
   (defvar my-treesit-auto-activated nil)
   (defun my-treesit-auto-activate ()
     "首次打开文件时激活 treesit-auto (懒加载, 加速启动)."
@@ -86,8 +89,23 @@
       (setq my-treesit-auto-activated t)
       ;; 用 'all: 无条件注册所有 ts-mode 到 auto-mode-alist (php 已排除)
       (global-treesit-auto-mode 1)
-      (treesit-auto-add-to-auto-mode-alist 'all)))
-  (add-hook 'after-find-file-hook #'my-treesit-auto-activate))
+      (treesit-auto-add-to-auto-mode-alist 'all)
+      ;; 坑: 当前文件打开时 treesit-auto 还没激活, 已按旧 alist 落到
+      ;; 非 ts-mode (如 js-mode)。激活后按新 auto-mode-alist 重新判定当前
+      ;; 文件该用什么 mode, 不同就切过去。
+      (let ((new-mode (and buffer-file-name
+                           (assoc-default buffer-file-name auto-mode-alist
+                                          #'string-match-p))))
+        (when (and new-mode
+                   (not (eq new-mode major-mode))
+                   (fboundp new-mode))
+          (funcall new-mode)))))
+  ;; ⚠️ 用 find-file-hook (Emacs 30 after-find-file 结尾 run 的就是它;
+  ;; 没有 after-find-file-hook 这个 hook, 挂它会永不触发 — 2026-08 实测)
+  (add-hook 'find-file-hook #'my-treesit-auto-activate)
+  ;; 启动时立即激活: 避免"首次打开文件才激活"导致文件先落旧 mode 再切换
+  ;; (二次初始化 + 卡顿, 2026-08 用户报 treemacs 打开文件卡顿)。代价: 启动 +~0.5s。
+  (my-treesit-auto-activate))
 
 (provide 'init-env)
 ;;; init-env.el ends here
