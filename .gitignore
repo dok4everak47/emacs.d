@@ -31,3 +31,6 @@ request/
 .org-id-locations
 .org-generic-id-locations
 servers.el
+
+# projectile 运行数据 (项目历史/收藏缓存, 每台机器不同)
+projectile-*.eld
