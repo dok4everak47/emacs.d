@@ -75,6 +75,23 @@
   (dired-sidebar-pop-to-sidebar-on-toggle-open nil) ; toggle 打开时不抢焦点
   (dired-sidebar-project-root-fn #'dired-sidebar-project-root-projectile)) ; 走 projectile
 
+;; ---------- dired 增强 (C-x d, VSCode 风格默认进项目根) ----------
+;; Emacs 内置 C-x d 的 prompt 默认填 default-directory — 在非项目 buffer
+;; (scratch/dashboard) 里默认指向 ~ 等非项目目录, 回车进 dired 后
+;; projectile 不认, C-c p f 找不到文件。File 菜单 Open Directory 之所以
+;; "能用", 是因点击菜单的当前 buffer 多在项目内 (default-directory 已是根)。
+;; 修法: C-x d 包装 — 默认目录优先填 projectile-project-root, 无项目时退回
+;; 原生行为 (default-directory), 保证菜单和 C-x d 行为一致。
+(defun my-dired ()
+  "智能 dired: prompt 默认填 projectile 项目根 (无项目时退回默认目录)."
+  (interactive)
+  (let ((default-directory
+          (or (when (fboundp 'projectile-project-root)
+                (projectile-project-root))
+              default-directory)))
+    (call-interactively #'dired)))
+(global-set-key (kbd "C-x d") #'my-dired)
+
 ;; ---------- 文件图标 (nerd-icons-dired, dired-sidebar 依赖) ----------
 (use-package nerd-icons-dired
   :ensure t
