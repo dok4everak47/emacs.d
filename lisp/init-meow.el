@@ -30,7 +30,7 @@
 ;;   - SPC = keypad: SPC x f = C-x C-f, SPC m l = M-l (org 表格右移)
 ;;
 ;; 自定义 state:
-;;   emacs       — 无 meow 绑定, 纯原生键 (treemacs 等特殊 mode)
+;;   emacs       — 无 meow 绑定, 纯原生键 (gnus 等特殊 mode)
 ;;   org-agenda  — agenda 专用态 (保留原 evil-org agenda 键位, SPC/j/k 特殊处理)
 ;;
 ;; 替代原 evil 生态:
@@ -141,7 +141,7 @@
    '("<escape>" . ignore)))
 (my-meow-setup)
 
-;; ---------- 自定义 state: emacs (纯原生, treemacs 等特殊 mode) ----------
+;; ---------- 自定义 state: emacs (纯原生, gnus 等特殊 mode) ----------
 ;; 参考 doom-meow 模块: 无 meow 绑定, 只保留切回 + M-SPC keypad
 (defvar my-meow-emacs-state--previous nil
   "Meow state before switching to EMACS state.")
@@ -154,7 +154,7 @@
   "Keymap for EMACS state.")
 
 (meow-define-state emacs
-  "原生 Emacs 态: 无 meow 绑定, 用于 treemacs 等特殊 mode."
+  "原生 Emacs 态: 无 meow 绑定, 用于 gnus 等特殊 mode."
   :lighter " [E]"
   :keymap my-meow-emacs-state-keymap)
 
@@ -272,8 +272,7 @@
 ;; ---------- 各 major-mode 初始 state ----------
 ;; normal: 普通编辑 (prog/text 默认) / motion: 只占 j/k, 字母键穿透
 ;; emacs: 无 meow 绑定 / insert: 直接输入
-(dolist (entry '((treemacs-mode . emacs)
-                 (dired-mode . motion)
+(dolist (entry '((dired-mode . motion)
                  (vterm-mode . insert)
                  (magit-status-mode . motion)
                  (magit-log-mode . motion)

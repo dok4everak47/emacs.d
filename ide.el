@@ -5,14 +5,11 @@
 ;;; 注意: 本文件不启用 native-comp (见 early-init.el), 包走字节码, 功能不受影响。
 
 ;; 编译期声明 (包/内置模块加载后变量才有定义)
-(defvar treemacs-file-event-mode nil)
-(defvar treemacs-project-follow-mode nil)
 (defvar display-line-numbers-type nil)
-(declare-function treemacs "treemacs")
-(declare-function treemacs-select-window "treemacs")
+(declare-function dirvish-side "dirvish-side")
+(declare-function dirvish-revert "dirvish")
 (declare-function mood-line-mode "mood-line")
 (declare-function dashboard-setup-startup-hook "dashboard")
-(declare-function doom-themes-treemacs-config "doom-themes")
 (declare-function doom-themes-visual-bell-config "doom-themes")
 
 ;; ---------- 包管理: 内置 package.el + 清华镜像 ----------
@@ -31,8 +28,6 @@
   (setq doom-themes-enable-bold t
         doom-themes-enable-italic t)
   (load-theme 'doom-one t)
-  ;; treemacs 集成 (文件树用 doom 图标)
-  (doom-themes-treemacs-config)
   ;; 可视化错误提示 (闪屏替代蜂鸣声)
   (doom-themes-visual-bell-config))
 
@@ -49,18 +44,35 @@
 ;; ---------- 标签页 (VSCode 上方 tab, 可鼠标点击/关闭) ----------
 (tab-bar-mode 1)
 
-;; ---------- 侧边栏文件树 (VSCode 左侧 Explorer) ----------
-(use-package treemacs
+;; ---------- 窗口分屏方向 (Dired o / find-file-other-window 等) ----------
+;; split-window-sensibly 规则: 窗口 >= split-width-threshold 字符宽 → 左右分;
+;; 否则 >= split-height-threshold 行高 → 上下分; 都够不着且是唯一窗口 → 往下劈。
+;; 默认 160 太宽, 普通帧永远左右不了, 只能上下堆叠。调到 90: 够宽就左右并排。
+(setq split-width-threshold 90)
+
+;; ---------- 侧边栏文件树 + Dired 增强 (VSCode 左侧 Explorer, dirvish) ----------
+;; dirvish 是 dired 增强 (替代 treemacs): dirvish-side 提供左侧文件树,
+;; 打开文件后树自动收起、主窗口显示文件 — 与 treemacs 行为一致。
+;; meow state: dirvish-side 的 buffer 是 dired-mode 派生 (dirvish-mode-map
+;; 继承 dired-mode-map), 已映射 motion 态, 字母键穿透, 无需额外处理。
+(use-package dirvish
+  :ensure t
   :config
-  (setq treemacs-width 28
-        treemacs-position 'left
-        treemacs-follow-mode t          ; 光标切 buffer 时文件树自动跟随
-        treemacs-file-event-mode t      ; 外部文件变更自动刷新
-        treemacs-project-follow-mode t)
-  ;; treemacs 单字母键 (s/d/r/u/m/h/l 等) 不被 meow 占用: treemacs 走自定义
-  ;; EMACS state (见 init-meow.el), meow 绑定全部关闭, 原生键直接生效。
-  (global-set-key (kbd "C-c t t") #'treemacs)          ; 打开/关闭文件树
-  (global-set-key (kbd "C-c t d") #'treemacs-select-window))
+  ;; 全屏 Dired 也走 dirvish 增强 (模式行/图标/预览)
+  (dirvish-override-dired-mode 1)
+  (setq dirvish-width 28
+        dirvish-side-width 28
+        dirvish-attributes '(nerd-icons file-size) ; 文件图标 (nerd-icons 已装)
+        dirvish-hide-details t)
+  ;; 打开/收起侧边栏 (treemacs 同款: C-c t t = 文件树)
+  (global-set-key (kbd "C-c t t") #'dirvish-side)
+  ;; 选中侧边栏窗口 (treemacs-select-window 替代): dirvish-side 已可见时
+  ;; 只是 select, 不 toggle — 包装成纯\"选中\"语义
+  (defun my-dirvish-side-select-window ()
+    "选中 dirvish 侧边栏窗口; 不存在则创建."
+    (interactive)
+    (dirvish-side))
+  (global-set-key (kbd "C-c t d") #'my-dirvish-side-select-window))
 
 ;; ---------- 状态栏 (VSCode 底部状态条: 文件名/修改/git/位置) ----------
 (use-package mood-line
@@ -109,9 +121,9 @@
 ;; ---------- 菜单栏加 "IDE" 菜单 (GUI 友好, 不用记快捷键) ----------
 (easy-menu-define nil global-map "IDE"
   '("IDE"
-    ["文件树 (Explorer)" treemacs t]
-    ["切换到文件树窗口" treemacs-select-window t]
-    ["刷新文件树" treemacs-refresh t]
+    ["文件树 (Explorer)" dirvish-side t]
+    ["切换到文件树窗口" my-dirvish-side-select-window t]
+    ["刷新文件树" dirvish-revert t]
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
@@ -141,8 +153,8 @@
             (lambda (&rest _) (my-compose-mail126)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-file_directory") "📂")
-            "文件树" "打开 Treemacs"
-            (lambda (&rest _) (treemacs)))
+            "文件树" "打开 Dirvish 侧边栏"
+            (lambda (&rest _) (dirvish-side)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-sign_out") "🚪")
             "退出" "退出 Emacs"
