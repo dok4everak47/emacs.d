@@ -55,6 +55,10 @@
   :custom
   (consult-async-min-input 1)
   (consult-narrow-key nil)
+  ;; consult 与 project.el 集成: consult-project-function 指向
+  ;; project-find-functions → project.el 的 project-find-file /
+  ;; project-switch-project 等命令 (C-x p 前缀) 共用同一项目概念,
+  ;; dired-sidebar 也走 project.el 检测根目录 — 三者联动。
   (consult-project-function #'project-find-functions))
 
 ;; ---------- embark: 上下文操作 ----------
