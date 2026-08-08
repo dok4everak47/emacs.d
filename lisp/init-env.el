@@ -54,6 +54,7 @@
   (yas-global-mode 1)
   :custom
   (yas-triggers-in-field t)                ; 嵌套 snippet 允许
+  (yas-use-menu nil)                       ; 隐藏菜单栏 YASnippet 菜单 (只留快捷键)
   :config
   ;; yasnippet-snippets: 社区通用 snippet 库
   (use-package yasnippet-snippets

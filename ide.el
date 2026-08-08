@@ -107,6 +107,7 @@
   :custom
   (projectile-enable-caching t)              ; 大项目文件列表缓存
   (projectile-completion-system 'default)    ; 让 consult 接管候选 UI
+  (projectile-show-menu nil)                 ; 隐藏菜单栏 Projectile 菜单 (只留快捷键)
   :config
   ;; 全局 minor mode 放 :config 而非 :init — 确保 :custom 先执行
   ;; (projectile-mode 启用时会读 projectile-completion-system)
