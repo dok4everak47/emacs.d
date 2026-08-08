@@ -54,12 +54,28 @@
    ("M-s m" . consult-bookmark))
   :custom
   (consult-async-min-input 1)
-  (consult-narrow-key nil)
-  ;; consult 与 project.el 集成: consult-project-function 指向
-  ;; project-find-functions → project.el 的 project-find-file /
-  ;; project-switch-project 等命令 (C-x p 前缀) 共用同一项目概念,
-  ;; dired-sidebar 也走 project.el 检测根目录 — 三者联动。
-  (consult-project-function #'project-find-functions))
+  (consult-narrow-key nil))
+  ;; consult 不再绑 consult-project-function: consult-projectile 接管
+  ;; 项目相关候选 (consult-projectile-find-file/switch-project/recentf)。
+  ;; dired-sidebar 走 projectile 检测根目录 — 三者联动。
+
+;; ---------- consult-projectile: 项目命令 (consult + projectile) ----------
+;; 替代内置 project.el 的 C-x p 前缀; projectile 全局检测项目 + 缓存。
+;; C-c p 是 projectile 默认前缀, 这里把候选升级为 consult 风格
+;; (vertico+orderless 模糊)。popper 已占 C-c p p/t/o, 不动;
+;; 切项目改用 C-c p P (大写, 易记 "Project switch")。
+(use-package consult-projectile
+  :ensure t
+  :demand t                                   ; 不 :after, 自己 require
+  :config
+  (require 'consult)
+  (require 'projectile)
+  ;; 覆盖 projectile 默认候选为 consult 风格 (popper 的 C-c p p/t/o 不动)
+  (define-key projectile-mode-map (kbd "C-c p f") #'consult-projectile-find-file)
+  (define-key projectile-mode-map (kbd "C-c p r") #'consult-projectile-recentf)
+  (define-key projectile-mode-map (kbd "C-c p b") #'consult-projectile-switch-to-buffer)
+  (define-key projectile-mode-map (kbd "C-c p d") #'consult-projectile-find-dir)
+  (define-key projectile-mode-map (kbd "C-c p P") #'consult-projectile-switch-project))
 
 ;; ---------- embark: 上下文操作 ----------
 ;; M-o 或 C-. 在光标处弹出操作菜单 (打开/复制/删除/搜索等)

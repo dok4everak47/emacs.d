@@ -53,13 +53,14 @@
 ;; ---------- 侧边栏文件树 (dired-sidebar, VSCode 左侧 Explorer) ----------
 ;; dired-sidebar: 把 dired 放进侧边窗口, 天然继承 dired 全部键位 (i/TAB
 ;; 子树, C-x M-o dotfiles, g 刷新, wdired C-x C-q), 无需学新键。
-;; 项目根自动检测走内置 project.el (dired-sidebar-project-root-fn 默认值),
-;; consult 已绑 consult-project-function #'project-find-functions → 三者共享
-;; 同一项目概念, C-x p p 切项目时 sidebar 自动跟随刷新。
+;; 项目根检测走 projectile (dired-sidebar-project-root-fn 设为
+;; dired-sidebar-project-root-projectile), projectile-after-switch-project-hook
+;; 自动挂 → C-c p p 切项目 sidebar 自动刷新根目录。
 ;; meow: dired-sidebar-mode 继承 dired-mode → 已映射 motion 态, 无需配置。
 (use-package dired-sidebar
   :ensure t
   :demand t                                 ; :custom 变量需包加载才定义
+  :after projectile                          ; 等 projectile 加载后配 root-fn
   :bind
   (;; 打开/收起侧边栏 (treemacs 同款 C-c t t)
    ("C-c t t" . dired-sidebar-toggle-sidebar)
@@ -71,22 +72,43 @@
   (dired-sidebar-should-follow-file nil)    ; 不自动跟随 (流畅优先, 同 treemacs 教训)
   (dired-sidebar-refresh-on-project-switch t) ; 切项目时自动刷新根目录
   (dired-sidebar-close-sidebar-on-file-open nil) ; 打开文件后树保留
-  (dired-sidebar-pop-to-sidebar-on-toggle-open nil)) ; toggle 打开时不抢焦点
+  (dired-sidebar-pop-to-sidebar-on-toggle-open nil) ; toggle 打开时不抢焦点
+  (dired-sidebar-project-root-fn #'dired-sidebar-project-root-projectile)) ; 走 projectile
 
 ;; ---------- 文件图标 (nerd-icons-dired, dired-sidebar 依赖) ----------
 (use-package nerd-icons-dired
   :ensure t
   :hook (dired-mode . nerd-icons-dired-mode))
 
-;; ---------- project.el (内置, 项目管理 + 文件搜索) ----------
-;; consult 已绑 consult-project-function → project-find-functions,
-;; dired-sidebar 默认走 project.el 检测根目录 — 三者共享同一项目概念。
-;; C-x p 是 project.el 的内置前缀 (project.el 自动挂 global-map)。
-(use-package project
-  :ensure nil                                ; Emacs 30 内置
+;; ---------- projectile (项目管理, 替代内置 project.el) ----------
+;; consult-projectile 提供 consult 风格候选 (vertico+orderless);
+;; dired-sidebar 走 projectile 检测根目录 — 三者共享同一项目概念。
+;; projectile-import-known-projects 自动从 project.el 已知项目迁移。
+(use-package projectile
+  :ensure t
+  :demand t
+  :init
+  (projectile-mode 1)                        ; 全局 minor mode (项目检测)
   :custom
-  ;; project-find-file 等用 consult 风格 (vertico 候选 + orderless 匹配)
-  (project-switch-commands 'project-find-file)) ; C-x p p 默认动作=找文件
+  (projectile-enable-caching t)              ; 大项目文件列表缓存
+  (projectile-completion-system 'default)    ; 让 consult 接管候选 UI
+  :config
+  ;; 从内置 project.el 已知项目导入 (projectile 不会自动继承)
+  (when (fboundp 'projectile-import-known-projects)
+    (ignore-errors (projectile-import-known-projects))))
+
+;; ---------- consult-projectile (consult + projectile 集成) ----------
+;; 用 consult 风格 (vertico 候选 + orderless 模糊) 选项目/文件/buffer。
+;; 命令: C-c p p=切项目, C-c p f=项目内找文件, C-c p r=recentf,
+;; C-c p b=切项目 buffer — 见 init-completion.el 的 :bind 补充。
+(use-package consult-projectile
+  :ensure t
+  :after (consult projectile)
+  :demand t
+  :custom
+  ;; 切项目后默认动作 (consult-projectile-switch-project 用):
+  ;; 'projectile-find-file (打开项目并立刻找文件) — VSCode 切项目即看文件
+  (consult-projectile-use-projectile-switch-project t))
 
 ;; ---------- 状态栏 (VSCode 底部状态条: 文件名/修改/git/位置) ----------
 (use-package mood-line
@@ -138,8 +160,8 @@
     ["文件树 (Explorer)" dired-sidebar-toggle-sidebar t]
     ["切换到文件树窗口" dired-sidebar-jump-to-sidebar t]
     ["刷新文件树" revert-buffer t]
-    ["项目内找文件" project-find-file t]
-    ["切换项目" project-switch-project t]
+    ["项目内找文件" consult-projectile-find-file t]
+    ["切换项目" consult-projectile-switch-project t]
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
