@@ -160,8 +160,8 @@
     ["文件树 (Explorer)" dired-sidebar-toggle-sidebar t]
     ["切换到文件树窗口" dired-sidebar-jump-to-sidebar t]
     ["刷新文件树" revert-buffer t]
-    ["项目内找文件" consult-projectile-find-file t]
-    ["切换项目" consult-projectile-switch-project t]
+    ["项目内找文件" my-consult-projectile-find-file t]
+    ["切换项目" my-consult-projectile-switch-project t]
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 

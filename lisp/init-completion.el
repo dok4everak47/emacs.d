@@ -64,18 +64,48 @@
 ;; C-c p 是 projectile 默认前缀, 这里把候选升级为 consult 风格
 ;; (vertico+orderless 模糊)。popper 已占 C-c p p/t/o, 不动;
 ;; 切项目改用 C-c p P (大写, 易记 "Project switch")。
+;;
+;; ⚠️ consult-projectile 包所有命令都走同一个 consult-projectile 入口,
+;; prompt 写死 "Switch to:" (源码 :prompt 不分命令) — 选文件时显示
+;; "Switch to:" 不贴切。包装函数绕过入口, 直接用 consult--multi +
+;; 对应 source, prompt 改为各自的语义 ("Find file:" 等)。
 (use-package consult-projectile
   :ensure t
   :demand t                                   ; 不 :after, 自己 require
   :config
   (require 'consult)
   (require 'projectile)
+  ;; 包装: 直接调 consult--multi 用单一 source, prompt 自己写
+  (defun my-consult-projectile--run (source prompt)
+    "用 consult--multi 跑单一 SOURCE, prompt 用 PROMPT."
+    (when-let (cand (consult--multi (list source) :prompt prompt :sort nil))
+      (funcall (plist-get source :action) (car cand))))
+  (defun my-consult-projectile-find-file ()
+    "项目内找文件 (prompt 改正, 不显示 Switch to)."
+    (interactive)
+    (my-consult-projectile--run consult-projectile--source-projectile-file "Find file: "))
+  (defun my-consult-projectile-recentf ()
+    "项目 recentf."
+    (interactive)
+    (my-consult-projectile--run consult-projectile--source-projectile-recentf "Recent file: "))
+  (defun my-consult-projectile-switch-to-buffer ()
+    "项目 buffer."
+    (interactive)
+    (my-consult-projectile--run consult-projectile--source-projectile-buffer "Switch to buffer: "))
+  (defun my-consult-projectile-find-dir ()
+    "项目目录."
+    (interactive)
+    (my-consult-projectile--run consult-projectile--source-projectile-dir "Find directory: "))
+  (defun my-consult-projectile-switch-project ()
+    "切项目 (默认动作: 找文件, consult-projectile-use-projectile-switch-project 控制)."
+    (interactive)
+    (my-consult-projectile--run consult-projectile--source-projectile-project "Switch project: "))
   ;; 覆盖 projectile 默认候选为 consult 风格 (popper 的 C-c p p/t/o 不动)
-  (define-key projectile-mode-map (kbd "C-c p f") #'consult-projectile-find-file)
-  (define-key projectile-mode-map (kbd "C-c p r") #'consult-projectile-recentf)
-  (define-key projectile-mode-map (kbd "C-c p b") #'consult-projectile-switch-to-buffer)
-  (define-key projectile-mode-map (kbd "C-c p d") #'consult-projectile-find-dir)
-  (define-key projectile-mode-map (kbd "C-c p P") #'consult-projectile-switch-project))
+  (define-key projectile-mode-map (kbd "C-c p f") #'my-consult-projectile-find-file)
+  (define-key projectile-mode-map (kbd "C-c p r") #'my-consult-projectile-recentf)
+  (define-key projectile-mode-map (kbd "C-c p b") #'my-consult-projectile-switch-to-buffer)
+  (define-key projectile-mode-map (kbd "C-c p d") #'my-consult-projectile-find-dir)
+  (define-key projectile-mode-map (kbd "C-c p P") #'my-consult-projectile-switch-project))
 
 ;; ---------- embark: 上下文操作 ----------
 ;; M-o 或 C-. 在光标处弹出操作菜单 (打开/复制/删除/搜索等)
