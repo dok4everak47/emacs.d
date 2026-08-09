@@ -29,6 +29,21 @@
         (indent-to col)
       (indent-to (+ col tab-width)))))
 
+(defun my-simple-indent-backspace ()
+  "Backspace: 按缩进单位删 (一次删 tab-width 个空格), 否则删 1 字符."
+  (interactive)
+  (let ((col (current-column)))
+    (if (and (> col 0)
+             (= 0 (% col tab-width))          ; 光标列正好是 tab-width 的整数倍
+             (save-excursion                 ; 且光标前是 tab-width 个空格 (在缩进区)
+               (let ((bol (line-beginning-position)))
+                 (and (> (point) bol)
+                      (string-match-p
+                       (concat "^ *$")
+                       (buffer-substring bol (point)))))))
+        (delete-backward-char tab-width)
+      (delete-backward-char 1))))
+
 ;; 统一挂到所有编程语言 (prog-mode 是所有编程 mode 的父类)
 (add-hook 'prog-mode-hook
           (lambda ()
@@ -39,7 +54,15 @@
             ;; 只绑 RET 会导致 Return 走 electric-indent 默认 newline
             (local-set-key (kbd "RET") #'my-simple-indent-newline)
             (local-set-key (kbd "<return>") #'my-simple-indent-newline)
-            (local-set-key (kbd "C-m") #'my-simple-indent-newline)))
+            (local-set-key (kbd "C-m") #'my-simple-indent-newline)
+            ;; Backspace 按缩进单位删 (2 空格一块), 不逐个删
+            (local-set-key (kbd "DEL") #'my-simple-indent-backspace)
+            (local-set-key (kbd "<backspace>") #'my-simple-indent-backspace)
+            (local-set-key (kbd "<delete>") #'my-simple-indent-backspace)
+            (local-set-key (kbd "C-h") #'my-simple-indent-backspace)))
+
+;; meow insert 态 C-h 退格 → 按缩进单位删, 已直接在 init-meow.el 的
+;; meow-insert-state-keymap 定义处覆盖 (比 with-eval-after-load 可靠, 加载顺序无关)。
 
 (provide 'init-simple-indent)
 ;;; init-simple-indent.el ends here

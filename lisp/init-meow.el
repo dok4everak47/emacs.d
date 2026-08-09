@@ -284,7 +284,7 @@
 
 ;; ---------- insert 态键位 (原 evil 习惯) ----------
 (define-key meow-insert-state-keymap (kbd "C-g") #'meow-insert-exit) ; C-g 退 insert
-(define-key meow-insert-state-keymap (kbd "C-h") #'delete-backward-char) ; C-h 退格 (不弹 help)
+(define-key meow-insert-state-keymap (kbd "C-h") #'my-simple-indent-backspace) ; C-h 退格 (按缩进单位删, 不弹 help)
 
 ;; ---------- surround (替代 evil-surround) ----------
 ;; 用法 (先选中内容, 再执行):
