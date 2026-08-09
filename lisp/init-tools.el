@@ -49,6 +49,12 @@
 ;; ---------- diredfl: dired 文件类型高亮 ----------
 ;; 让 dired 按文件类型显示不同颜色, 不再全是黑白。
 ;; 自定义配色 (doom-one 主题色系, 覆盖 diredfl 默认):
+
+;; ⚠️ macOS /bin/ls 是 BSD 版, 不认 GNU ls 的 --group-directories-first 等
+;; 开关, C-x d 会报 "Listing directory failed but 'access-file' worked"。
+;; 改用 ls-lisp (纯 elisp 实现), 不再 fork 外部 ls, 绕开所有 BSD/GNU 兼容坑。
+(require 'ls-lisp)
+(setq ls-lisp-use-insert-directory-program nil)
 ;;   目录=蓝  隐藏文件(.开头)=白  文档(.md/.txt)=暖黄  源码=绿
 ;;   图片=紫  压缩包=红  配置(.json/.yaml)=青
 (use-package diredfl
@@ -167,6 +173,48 @@
   (define-key dired-mode-map (kbd "C-x M-o") #'dired-omit-mode)
   ;; 外部新建/删除文件后, 重进 dired 自动刷新列表, 不用手动 g
   (setq dired-auto-revert-buffer #'dired-directory-changed-p))
+
+;; ---------- 窗口管理: 方向键切换 window ----------
+;; windmove: Shift+方向键 切到对应方向的 window (rame 内多窗口时最直观)
+;; C-x o 需要循环, 方向键一次到位
+(windmove-default-keybindings)       ; Shift+方向键
+(global-set-key (kbd "s-<up>") #'windmove-up)      ; ⌘+方向键 (macOS 风格, 不与 Shift 选区冲突)
+(global-set-key (kbd "s-<down>") #'windmove-down)
+(global-set-key (kbd "s-<left>") #'windmove-left)
+(global-set-key (kbd "s-<right>") #'windmove-right)
+
+;; ---------- 窗口大小: ⌘+方向键连续调 ----------
+;; 在 window 内按 ⌘+方向键 切 window; 按 Shift+⌘+方向键 调当前 window 大小
+;; 连续按 = 连续调, 比单步 C-x ^/{}/{ 快
+(global-set-key (kbd "S-s-<up>") #'enlarge-window)       ; ⌘⇧↑ 当前 window 变高
+(global-set-key (kbd "S-s-<down>") #'shrink-window)      ; ⌘⇧↓ 当前 window 变矮
+(global-set-key (kbd "S-s-<left>") #'shrink-window-horizontally)  ; ⌘⇧← 变窄
+(global-set-key (kbd "S-s-<right>") #'enlarge-window-horizontally) ; ⌘⇧→ 变宽
+;; C-c w 弹出所有 window 候选 (buffer 名 + 维度), 模糊搜索选切
+;; minibuffer 候选条目数 = 当前窗口数
+;; 注: 不用 C-x w w — Emacs 30 的 C-x w 是 window keymap 前缀, 子键被占
+(defun my-consult-window ()
+  "用 consult 模糊搜索并切换到指定 window."
+  (interactive)
+  (let* ((wins (window-list nil nil (frame-first-window)))
+         (candidates
+          (mapcar (lambda (w)
+                    (cons (format "%s  [%dx%d]"
+                                   (buffer-name (window-buffer w))
+                                   (window-total-width w)
+                                   (window-total-height w))
+                          w))
+                  wins)))
+    (if (= (length candidates) 1)
+        (message "只有 1 个 window")
+      (when-let ((selected (consult--read
+                            (mapcar #'car candidates)
+                            :prompt "切换到 window: "
+                            :sort nil
+                            :require-match t)))
+        (select-window (alist-get selected candidates nil nil #'string=))))))
+
+(define-key (current-global-map) (kbd "C-c w") #'my-consult-window)
 
 (provide 'init-tools)
 ;;; init-tools.el ends here

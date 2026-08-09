@@ -595,6 +595,7 @@
 (require 'init-completion nil t)
 (require 'init-tools nil t)
 (require 'init-env nil t)
+(require 'init-nix nil t)   ; Nix 语言 (nix-mode + nixd LSP, 依赖 init-env 的 treesit-auto 排除)
 (require 'init-term nil t)
 (require 'init-server nil t)   ; 服务器管理 (TRAMP + vterm), 清单在 servers.el
 (require 'init-dev nil t)

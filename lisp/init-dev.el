@@ -70,6 +70,14 @@
                   (unless (httpd-running-p)
                     (httpd-start))))))
 
+;; ---------- JS/TS 缩进: 2 空格 (默认 4) ----------
+;; js-ts-mode 和 js-mode 都读 js-indent-level; js-ts-mode 额外读
+;; js-ts-mode-indent-offset (treesit 用), 两个都设 2。
+(setq-default js-indent-level 2
+              js-ts-mode-indent-offset 2)
+
+(add-hook 'js-ts-mode-hook (lambda () (setq-local tab-width 2)))
+
 ;; ---------- 运行当前 JS 文件 (node) ----------
 (defun my-js-run ()
   "运行当前 JS 文件 (node), 结果输出到 *js-run* buffer 并自动弹出显示."

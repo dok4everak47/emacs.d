@@ -41,8 +41,12 @@
 (dolist (charset '(kana han cjk-misc bopomofo))
   (set-fontset-font t charset (font-spec :family "PingFang SC")))
 
-;; ---------- 标签页 (VSCode 上方 tab, 可鼠标点击/关闭) ----------
+;; ---------- 标签页 (浏览器式: 每个文件一个 tab, 点击切换) ----------
+;; tab-bar-buffers: 把 tab-bar 的 tab 内容来源改成 buffer (每打开 buffer 一 tab,
+;; 点 tab 切 buffer, 关 buffer 关 tab), 比 Emacs 默认的 tab (窗口布局快照) 直观。
+;; ⚠️ tab-bar-buffers-mode 不会自动开 tab-bar-mode — 必须两个都开, 否则那一栏不显示。
 (tab-bar-mode 1)
+(tab-bar-buffers-mode 1)
 
 ;; ---------- 窗口分屏方向 (Dired o / find-file-other-window 等) ----------
 ;; split-window-sensibly 规则: 窗口 >= split-width-threshold 字符宽 → 左右分;
@@ -272,13 +276,9 @@
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
 
-;; 顶部标签页: Dashboard 的 tab 显示 🏠 Home, 其他 buffer 显示原名
-(setq tab-bar-tab-name-format-function
-      (lambda (tab _i)
-        (let ((name (alist-get 'name tab)))
-          (if (string= name dashboard-buffer-name)
-              "🏠 Home"
-            name))))
+;; tab-bar-tab-name-format: 用默认 (tab-bar-buffers 自带文件名显示)
+;; 不再自定义 🏠 Home — 那段返回纯字符串无 text properties,
+;; 导致 tab-bar-buffers 渲染整个 tab 列表为空 (tab 不显示)。
 
 (provide 'ide)
 ;;; ide.el ends here

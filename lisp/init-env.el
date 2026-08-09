@@ -76,7 +76,7 @@
   ;; js/jsdoc/css), 缺 phpdoc/jsdoc 拒绝启动; php 改用 php-mode (纯 font-lock)。
   ;; 排除后 treesit-auto 的 remap/auto-mode-alist 都不会碰 .php。
   (treesit-auto-langs
-   (seq-remove (lambda (l) (memq l '(php))) ; 保留其余全部语言
+   (seq-remove (lambda (l) (memq l '(php nix))) ; nix 改用 nix-mode (SMIE 缩进, 比 treesit 稳)
                (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)))
   :config
   (require 'treesit)  ; 确保 tree-sitter 核心已加载 (batch 下需显式)
