@@ -599,6 +599,7 @@
 (require 'init-term nil t)
 (require 'init-server nil t)   ; 服务器管理 (TRAMP + vterm), 清单在 servers.el
 (require 'init-dev nil t)
+(require 'init-simple-indent nil t)   ; 编程语言统一简单缩进 (TAB 固定 2 空格 + RET 智能继承)
 (require 'init-meow nil t)
 (require 'init-org nil t)
 (require 'init-lazycat nil t)

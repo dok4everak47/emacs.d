@@ -41,12 +41,18 @@
 (dolist (charset '(kana han cjk-misc bopomofo))
   (set-fontset-font t charset (font-spec :family "PingFang SC")))
 
-;; ---------- 标签页 (浏览器式: 每个文件一个 tab, 点击切换) ----------
+;; ---------- 标签页 (浏览器式: 每个 buffer 一个 tab, 点击切换) ----------
 ;; tab-bar-buffers: 把 tab-bar 的 tab 内容来源改成 buffer (每打开 buffer 一 tab,
 ;; 点 tab 切 buffer, 关 buffer 关 tab), 比 Emacs 默认的 tab (窗口布局快照) 直观。
 ;; ⚠️ tab-bar-buffers-mode 不会自动开 tab-bar-mode — 必须两个都开, 否则那一栏不显示。
 (tab-bar-mode 1)
 (tab-bar-buffers-mode 1)
+
+;; ⚠️ tab-bar-buffers 默认按 buffer 名字母序排 tab → C-x 方向键跳转无规律。
+;; 改成 buffer-list 顺序 (= 打开顺序, 最近激活的排最前), 切 tab 可预期。
+(advice-add 'tab-bar-buffers--interesting-buffers--sort
+            :override
+            (lambda () (tab-bar-buffers--interesting-buffers)))
 
 ;; ---------- 窗口分屏方向 (Dired o / find-file-other-window 等) ----------
 ;; split-window-sensibly 规则: 窗口 >= split-width-threshold 字符宽 → 左右分;

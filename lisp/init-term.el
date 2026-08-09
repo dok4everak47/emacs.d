@@ -15,8 +15,8 @@
   :ensure t
   :commands (vterm vterm-other-window)
   :bind
-  (("C-c v" . vterm)                        ; 当前窗口打开终端
-   ("C-c V" . vterm-other-window))          ; 新窗口打开终端
+  (("C-c v" . vterm)                        ; 当前窗口打开/切到终端 (复用)
+   ("C-c V" . my-vterm-new-window))         ; 新窗口 + 强制新建终端
   :custom
   (vterm-max-scrollback 10000)             ; 回滚行数 (变量名 vterm-max-scrollback, 无 maximum)
   (vterm-shell (or (executable-find "zsh")
@@ -27,6 +27,12 @@
   (vterm-term-environment-variable "xterm-256color")
   (vterm-kill-buffer-on-exit t)            ; 退出终端自动关 buffer
   :config
+  ;; ⚠️ vterm-other-window 只是"换窗口显示同一终端" (vterm--internal 无 arg 复用 buffer)。
+  ;; 定义强制新建: 新窗口 + generate-new-buffer 新终端, 可开任意多个。
+  (defun my-vterm-new-window ()
+    "新窗口 + 强制新建一个 vterm 终端 (可开多个)."
+    (interactive)
+    (vterm--internal #'pop-to-buffer t))
   ;; 退出 vterm buffer 时不杀整个窗口 (避免误关编辑器窗口)
   (setq vterm-buffer-name "vterm"
         vterm-buffer-name-string "vterm")
