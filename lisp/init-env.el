@@ -41,10 +41,14 @@
 
 ;; ---------- envrc: direnv 集成 ----------
 ;; 项目根目录有 .envrc 文件时, 自动 direnv allow 并加载环境变量
+;; ⚠️ envrc-show-summary-in-minibuffer 默认 t: 每次加载把整套环境变量 diff
+;; (几十行 +AR +CC +NIX_*...) 打印到 minibuffer/messages 刷屏 → 关掉。
 (use-package envrc
   :ensure t
   :init
-  (envrc-global-mode 1))
+  (envrc-global-mode 1)
+  :custom
+  (envrc-show-summary-in-minibuffer nil))
 
 ;; ---------- yasnippet: 代码片段 ----------
 ;; 输入关键词 + Tab 展开 (如 "main" → main 函数模板)
