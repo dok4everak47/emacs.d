@@ -191,6 +191,8 @@
     ["关闭 LSP" eglot-shutdown t]))
 
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
+;; C-c h 随时回到 Dashboard (home)
+(global-set-key (kbd "C-c h") #'dashboard-open)
 (use-package nerd-icons
   :ensure t
   :when (display-graphic-p)
