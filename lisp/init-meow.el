@@ -25,7 +25,8 @@
 ;;   自动刷新: 外部改目录后重进自动更新, 不用手动 g (dired-auto-revert-buffer)
 ;;
 ;; 布局: QWERTY (官方示例)。核心差异 vs Vim/evil:
-;;   - 先选中再操作: w 选词 → d 删除 (不是 dw)
+;;   - 先选中再操作: w 标记当前词 → e 逐词扩展 → s 删除 (不是 dw!)
+;;   - 删除分工: d = 删光标处 1 字符 (Vim 的 x), s = 删选区 (Vim 的 d)
 ;;   - 数字后置:     选中后按 2/3/4 扩展选区 (不是 2w)
 ;;   - SPC = keypad: SPC x f = C-x C-f, SPC m l = M-l (org 表格右移)
 ;;
@@ -99,6 +100,7 @@
    '("b" . meow-back-word)
    '("B" . meow-back-symbol)
    '("c" . meow-change)
+   ;; d = 删光标处 1 字符 (Vim 的 x); 删选区用 s (meow-kill)!
    '("d" . meow-delete)
    '("D" . meow-backward-delete)
    '("e" . meow-next-word)
@@ -344,6 +346,7 @@
 (add-to-list 'meow-char-thing-table '(?E . org-element))
 (add-to-list 'meow-char-thing-table '(?R . org-subtree))
 (add-to-list 'meow-char-thing-table '(?G . org-greater))
+(add-to-list 'meow-char-thing-table '(?O . org-object))
 
 (provide 'init-meow)
 ;;; init-meow.el ends here

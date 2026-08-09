@@ -325,17 +325,30 @@
 ;;   1. 第一个 topic ("其他") 是所有未列出的新组的默认归属。
 ;;   2. Gnus 退出时会把 topic 结构存进 .newsrc.eld, 下次启动用保存值
 ;;      覆盖 init.el 的设置 —— 所以必须在进入组列表时强制重置 (下方 hook)。
- (defvar my-gnus-topic-alist
-  `(("其他"
-     )
-    (,(concat "Gmail · " my-gmail-address)
+;;   3. 2026-08 调整: Gmail 组直接放根 topic (名字 = Gmail 地址),
+;;      126 作为根的子 topic (紧随其后)。
+(defvar my-gnus-topic-alist
+  `(("luongchinc@gmail.com"
      "INBOX" "Notes" "已发邮件" "所有邮件" "已加星标" "垃圾邮件" "已删除邮件")
     (,(concat "126 · " my-mail126-address)
      "nnimap+126:INBOX" "nnimap+126:草稿箱" "nnimap+126:已发送"
      "nnimap+126:已删除" "nnimap+126:垃圾邮件" "nnimap+126:病毒邮件"
      "nnimap+126:广告邮件" "nnimap+126:Notes")
+    ("其他"
+     )
     ("草稿"
      "nndraft:drafts")))
+
+;; Gnus topic 树结构: 根 = Gmail 地址 (Gmail 组直接挂根下),
+;; 126 紧随其后作为根的子 topic。⚠️ 必须同时设 topology 和 alist:
+;; .newsrc.eld 的 setq 在 gnus-topic 加载前执行, 变量被 Gnus 启动重置为
+;; nil → 渲染报 char-or-string-p nil (2026-08 实测)。
+(defvar my-gnus-topic-topology
+  '(("luongchinc@gmail.com" visible)
+    (("126 · dok4ever123@126.com" visible nil nil))
+    (("其他" visible))
+    (("草稿" visible)))
+  "Gnus topic 树结构 (根 = Gmail, 126 是根的子 topic).")
 
 ;; Gmail 本地文件夹自动订阅 (nnmaildir 只认顶层目录, 嵌套的 [Gmail]/*
 ;; 已建顶层符号链接 ~/Mail/gmail/<名字>, 组名即链接名)
@@ -588,4 +601,29 @@
 (require 'init-meow nil t)
 (require 'init-org nil t)
 (require 'init-lazycat nil t)
+
+;; ================= 126 IMAP: 登录后发 ID 命令 (网易风控) =================
+;; 症状: Gnus 进 nnimap+126 报 "NO SELECT Unsafe Login. Please contact kefu@188.com"
+;; 根因: 网易 Coremail 要求客户端 LOGIN 后发 IMAP ID 命令 (RFC 2971) 声明
+;;       客户端身份, 不发的会话 SELECT 被拒 (LIST 正常, 读文件夹被拦)。
+;;       手工 socket 测试: LOGIN → ID → SELECT 成功; 不发 ID → SELECT Unsafe Login。
+;; 修复: advice 包 nnimap-login, 登录成功 (返回 t) 后立刻发 ID 命令。
+;;       仅对 126 (imap.126.com) 生效, 不影响 Gmail (nnmaildir 不经过这里)。
+;; ⚠️ 注意: 此段是未提交修改, git checkout/reset 会弄丢它 (2026-08-09 实测
+;;       丢过一次导致 126 复发) — 若要提交, 记得一起 commit。
+(with-eval-after-load 'nnimap
+  (defun my-nnimap-send-id-after-login (&rest args)
+    "nnimap-login 成功后发 IMAP ID 命令 (126 风控要求, 2026-08 实测)."
+    (let ((result (apply args)))
+      (when (and result
+                 (bufferp (current-buffer))
+                 (string-match-p "126"
+                                 (or (bound-and-true-p nnimap-address) "")))
+        (condition-case nil
+            (nnimap-command
+             "ID (\"name\" \"Gnus\" \"version\" \"%s\" \"vendor\" \"GNU\" \"os\" \"%s\")"
+             gnus-version system-type)
+          (error nil)))
+      result))
+  (advice-add 'nnimap-login :around #'my-nnimap-send-id-after-login))
 ;;; init.el ends here

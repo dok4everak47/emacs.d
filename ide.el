@@ -57,6 +57,15 @@
 ;; dired-sidebar-project-root-projectile), projectile-after-switch-project-hook
 ;; 自动挂 → C-c p p 切项目 sidebar 自动刷新根目录。
 ;; meow: dired-sidebar-mode 继承 dired-mode → 已映射 motion 态, 无需配置。
+;; ⚠️ 不用包自带的 dired-sidebar-project-root-projectile: 它在非项目 buffer
+;; (dashboard/scratch) 里 projectile-project-root 返回 nil → expand-file-name
+;; 报 "Wrong type argument: stringp, nil" (2026-08 实测 C-c t t 报错)。
+;; 自定义 wrapper 兜底回退 default-directory。
+(defun my-dired-sidebar-project-root ()
+  "项目根: projectile 命中返回项目根; 否则回退当前目录 (防 nil 报错)."
+  (or (when (fboundp 'projectile-project-root)
+        (projectile-project-root))
+      default-directory))
 (use-package dired-sidebar
   :ensure t
   :demand t                                 ; :custom 变量需包加载才定义
@@ -73,7 +82,7 @@
   (dired-sidebar-refresh-on-project-switch t) ; 切项目时自动刷新根目录
   (dired-sidebar-close-sidebar-on-file-open nil) ; 打开文件后树保留
   (dired-sidebar-pop-to-sidebar-on-toggle-open nil) ; toggle 打开时不抢焦点
-  (dired-sidebar-project-root-fn #'dired-sidebar-project-root-projectile)) ; 走 projectile
+  (dired-sidebar-project-root-fn #'my-dired-sidebar-project-root)) ; 走 projectile (见下方)
 
 ;; ---------- dired 增强 (C-x d, VSCode 风格默认进项目根) ----------
 ;; Emacs 内置 C-x d 的 prompt 默认填 default-directory — 在非项目 buffer
@@ -192,7 +201,7 @@
             "Gmail" "撰写 Gmail"
             (lambda (&rest _) (my-compose-gmail)))
            (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-pencil") "✍")
+                 (nerd-icons-octicon "nf-oct-paper_airplane") "✈")
             "126" "撰写 126 邮件"
             (lambda (&rest _) (my-compose-mail126)))
            (,(if (fboundp 'nerd-icons-octicon)
@@ -232,9 +241,16 @@
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
   (dashboard-banner-logo-title "Welcome to Emacs")
-  (dashboard-items '((recents . 10)
+  ;; 最近文件/项目数量 (recents 太多会刷屏)
+  (dashboard-items '((recents . 6)
                      (projects . 5)))
   (dashboard-projects-backend 'projectile)
+  ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
+  (dashboard-path-style 'truncate-beginning)
+  (dashboard-path-max-length 40)
+  ;; footer 固定文案 (默认是随机英文梗语录), 带 Emacs 版本号
+  (dashboard-footer-messages
+   (list (format "Happy hacking! · Emacs %s" emacs-version)))
   (dashboard-startupify-list
    '(dashboard-insert-banner
      dashboard-insert-newline
@@ -246,7 +262,12 @@
      dashboard-insert-newline
      dashboard-insert-items
      dashboard-insert-newline
-     dashboard-insert-footer)))
+     dashboard-insert-footer))
+  :custom-face
+  ;; 标题放大加粗 (默认 inherit default)
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold))))
+  ;; footer 亮灰斜体 (默认继承 widget-button, 颜色偏暗)
+  (dashboard-footer-face ((t (:foreground "#aaaaaa" :slant italic)))))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)

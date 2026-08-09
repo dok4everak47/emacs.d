@@ -176,11 +176,22 @@ let 动态绑定, :around advice 读取。")
   (add-to-list 'completion-at-point-functions #'cape-dict))
 
 ;; minibuffer 里也用 corfu (M-x 补全时)
+;; ⚠️ 坑: corfu 激活后劫持 RET (corfu-insert), yes/no 确认框 (yes-or-no-p)
+;; 输入 yes 后第一次回车被吃掉 → "要回车两次才确认" (2026-08 实测)。
+;; 修复: advice 包住 yes-or-no-p/y-or-n-p, 确认期间临时关闭 corfu,
+;; 不影响 M-x/文件选择等补全场景 (advice 不依赖 minibuffer 时序, 最可靠)。
 (defun corfu-enable-in-minibuffer ()
   "Minibuffer 里也启用 corfu."
   (when (minibufferp)
     (corfu-mode 1)))
 (add-hook 'minibuffer-setup-hook #'corfu-enable-in-minibuffer)
+
+(defun my-corfu-disable-for-yesno (orig &rest args)
+  "YES/NO 确认期间临时关闭 corfu (避免 RET 被 corfu-insert 劫持)."
+  (let ((corfu-mode nil))
+    (apply orig args)))
+(advice-add 'yes-or-no-p :around #'my-corfu-disable-for-yesno)
+(advice-add 'y-or-n-p :around #'my-corfu-disable-for-yesno)
 
 ;; savehist: 记录 minibuffer 历史, vertico 排序用
 (use-package savehist
