@@ -20,7 +20,8 @@
 ;;   C-c s r  重命名               C-c s d 清除全部高亮
 ;;   C-c p p  收起/弹出临时窗口    C-c p t 切换弹窗类型
 ;;   C-c o o  写作居中开关
-;;   C-c e n  行下方开新行         C-c e u 行上方开新行
+;;   C-c n    行下方开新行         C-c u 行上方开新行
+;;           (2026-08 从 C-c e n/u 挪来: C-c e 是 LSP 前缀, 语义混用)
 ;;   C-c d d  复制当前行
 ;;   move-text 不绑键 (org 占用 M-<up>/M-<down>), 用 M-x move-text-up/down
 ;;   所有功能也可在菜单栏 "快捷工具" 鼠标点选
@@ -351,8 +352,9 @@
     (move-to-column col)))
 
 ;; ---------- 键位 ----------
-(global-set-key (kbd "C-c e n") #'my-open-line-below)
-(global-set-key (kbd "C-c e u") #'my-open-line-above)
+;; 行上/下方开新行: 用 C-c n / C-c u (C-c e 留给 LSP, 2026-08 调整)
+(global-set-key (kbd "C-c n") #'my-open-line-below)
+(global-set-key (kbd "C-c u") #'my-open-line-above)
 (global-set-key (kbd "C-c d d") #'my-duplicate-line)
 
 ;; ---------- GUI 菜单: "快捷工具" (鼠标点选, 不记快捷键) ----------
