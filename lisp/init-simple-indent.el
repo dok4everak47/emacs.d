@@ -29,10 +29,12 @@
                       (beginning-of-line)
                       (looking-at-p "^[ \t]*$")))
         (col (current-indentation)))
-    ;; 非空行时, 光标后的行尾纯空白保留在旧行, 不带到新行
+    ;; 非空行时, 光标后的前导空白留在旧行, 不带到新行 (避免缩进叠加:
+    ;; 光标后是空格(或空格+内容)时, newline 会把它们推到新行行首,
+    ;; indent-to 再加缩进 → 缩进叠加变大)
     (unless empty-line
-      (when (looking-at "[ \t]+$")
-        (delete-region (point) (line-end-position))))
+      (when (looking-at "[ \t]*")
+        (delete-region (point) (match-end 0))))
     (newline)
     (indent-to (if (and empty-line
                         (eq last-command 'my-simple-indent-newline))
