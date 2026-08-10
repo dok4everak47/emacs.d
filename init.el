@@ -591,6 +591,11 @@
 ;; ide.el 提供主题/标签页/侧边栏/Dashboard 等外观层 (含 package.el 初始化)
 (when (file-exists-p (expand-file-name "ide.el" user-emacs-directory))
   (load (expand-file-name "ide.el" user-emacs-directory)))
+
+;; 禁用 electric-indent-mode (Emacs 默认开启): 回车后自动缩进,
+;; 连续按两次回车缩进会逐级增加 (用户不需要, 2026-08)。
+;; prog-mode 的缩进由 init-simple-indent 自定义 RET 管理, 不受影响。
+(electric-indent-mode -1)
 ;; 功能模块 (依赖 ide.el 的 package.el 初始化)
 (require 'init-completion nil t)
 (require 'init-tools nil t)
