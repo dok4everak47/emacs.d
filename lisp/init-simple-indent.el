@@ -4,8 +4,7 @@
 ;;
 ;; 对所有 prog-mode 系语言 (js/nix/racket/python/... 所有编程文件) 统一:
 ;;   - TAB: 每按一次多缩 2 空格 (固定缩进, 不做 S-expr/语法对齐)
-;;   - RET: 光标在行尾 → 新行缩进 = 上一行缩进 (同级继续)
-;;          光标不在行尾 → 新行缩进 = 旧行缩进 + 2 (换行后进入下一层)
+;;   - RET: 换行并继承当前行缩进 (同级, 不递增; 2026-08 从"非行尾+2"改为纯继承)
 ;;
 ;; 挂载 = 复制到 ~/.emacs.d/lisp/ + init.el 加载链加
 ;;   (require 'init-simple-indent nil t)
@@ -20,14 +19,13 @@
     (insert (make-string tab-width ?\s))))
 
 (defun my-simple-indent-newline ()
-  "RET: 行尾 → 同级缩进; 非行尾 → 再缩进一层."
+  "RET: 换行并继承当前行缩进 (同级, 不递增).
+2026-08 修改: 原实现\"非行尾回车缩进+2 (进入下一层)\", 用户反馈
+连续回车缩进逐次增加 → 改为统一继承当前行缩进, 回车不再改缩进。"
   (interactive)
-  (let ((col (current-indentation))
-        (at-eol (eolp)))
+  (let ((col (current-indentation)))
     (newline)
-    (if at-eol
-        (indent-to col)
-      (indent-to (+ col tab-width)))))
+    (indent-to col)))
 
 (defun my-simple-indent-backspace ()
   "Backspace: 按缩进单位删 (一次删 tab-width 个空格), 否则删 1 字符."
