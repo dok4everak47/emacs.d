@@ -385,7 +385,7 @@
 (setq org-capture-templates
       '(("t" "任务 (TODO)" entry (file "~/org/inbox.org")
          "* TODO %?\n  :PROPERTIES:\n  - Created: %U\n  :END:\n")
-        ("n" "笔记" entry (file "~/org/notes.org")
+        ("n" "笔记" entry (file "~/org/CAPTURE-notes.org")
          "* %?\n  %U\n")
         ("l" "链接 (带来源)" entry (file "~/org/links.org")
          "* %?\n  %U\n  Source: %a\n  %i\n")

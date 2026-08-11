@@ -47,7 +47,7 @@
 
 ;; ---------- impatient-mode: HTML/CSS 实时预览 ----------
 ;; 编辑 HTML/CSS 时在浏览器实时刷新 (类似 VSCode Live Server)
-;; 用法: 打开 HTML 文件 → M-x impatient-mode → 浏览器访问 localhost:8080
+;; 用法: 编辑 HTML/CSS 时按 C-c C-b 一键开预览, 浏览器自动打开
 ;; 保存即刷新, 不需要手动 reload
 (use-package impatient-mode
   :ensure t
@@ -69,6 +69,66 @@
                 (when (fboundp 'httpd-running-p)
                   (unless (httpd-running-p)
                     (httpd-start))))))
+
+;; --- 一键预览: C-c C-p 开 impatient + 浏览器自动打开 ---
+;; 函数和键绑定放顶层 (不在 use-package :config 里),
+;; 否则 :commands 懒加载导致 C-c C-p 要等首次 M-x impatient-mode 才注册。
+(defun my-impatient-preview ()
+  "一键开 HTML/CSS 实时预览: 开 impatient-mode + 浏览器打开预览页.
+再按一次关闭预览 (impatient-mode toggle).
+C-c <letter> 是用户保留键, 不会与 major-mode 冲突."
+  (interactive)
+  (if (bound-and-true-p impatient-mode)
+      ;; 已开 → 关闭
+      (progn
+        (impatient-mode -1)
+        (message "impatient-mode 已关闭"))
+    ;; 未开 → 开启 + 打开浏览器
+    (impatient-mode 1)
+    (let ((url (format "http://localhost:%d/imp/live/%s"
+                       (bound-and-true-p httpd-port)
+                       (url-hexify-string (buffer-name)))))
+      (browse-url url)
+      (message "impatient-mode 已开启 → %s" url))))
+;; C-c C-b: 外部浏览器实时预览 (impatient + 自动刷新)
+(global-set-key (kbd "C-c C-b") #'my-impatient-preview)
+
+;; ---------- xwidget-webkit 内嵌预览 (Emacs 窗口内, 跑 CSS/JS) ----------
+;; 需要 Emacs 编译时 --with-xwidgets (nix-darwin 已配).
+;; xwidget-webkit 只在 GUI Emacs 下可用 (display-graphic-p).
+;; 把当前 buffer HTML 写临时文件, 在下方分屏用 xwidget-webkit 渲染.
+(defvar my-xwidget-preview-tmpfile
+  (make-temp-file "emacs-xw-preview" nil ".html")
+  "xwidget 预览临时文件 (每次刷新覆写).")
+
+(defun my-xwidget-preview ()
+  "在下方分屏用 xwidget-webkit 渲染当前 HTML buffer.
+内嵌真 WebKit 引擎, CSS/JS 全跑 (跟浏览器一样).
+每次按 C-c C-p 刷新.  仅 GUI Emacs 可用."
+  (interactive)
+  (if (not (display-graphic-p))
+      (message "xwidget 需要 GUI Emacs (终端模式不支持)")
+    (let ((content (buffer-substring-no-properties (point-min) (point-max))))
+      (with-temp-buffer
+        (insert content)
+        (write-region (point-min) (point-max) my-xwidget-preview-tmpfile nil 'silent)))
+    (let ((url (concat "file://" my-xwidget-preview-tmpfile)))
+      ;; xwidget-webkit-browse-url 自建 buffer *xwidget-webkit: <url>*,
+      ;; 不能预先 get-buffer-create (会是普通 buffer 没 xwidget).
+      ;; 调用它后会切换到 xwidget buffer, 再 display-buffer 分屏显示.
+      (xwidget-webkit-browse-url url)
+      ;; 找到刚创建的 xwidget buffer (名含 "xwidget-webkit")
+      (let ((xw-buf (seq-find (lambda (b)
+                                (string-match-p "xwidget-webkit" (buffer-name b)))
+                              (buffer-list))))
+        (when xw-buf
+          (display-buffer xw-buf
+                          '((display-buffer-below-selected display-buffer-reuse-window)
+                            (window-height . 20)))))
+      (message "xwidget-webkit 预览已刷新 (C-c C-p 再按刷新)"))))
+
+;; C-c C-p: C-c <letter> 用户保留键, 全局绑定安全 (主预览键)
+(global-set-key (kbd "C-c C-p") #'my-xwidget-preview)
 
 ;; ---------- JS/TS 缩进: 2 空格 (默认 4) ----------
 ;; js-ts-mode 和 js-mode 都读 js-indent-level; js-ts-mode 额外读

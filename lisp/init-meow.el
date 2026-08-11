@@ -286,6 +286,17 @@
 ;; ---------- insert 态键位 (原 evil 习惯) ----------
 (define-key meow-insert-state-keymap (kbd "C-g") #'meow-insert-exit) ; C-g 退 insert
 (define-key meow-insert-state-keymap (kbd "C-h") #'my-simple-indent-backspace) ; C-h 退格 (按缩进单位删, 不弹 help)
+;; org-mode-map 把 < > (及 $ ( ) { }) 绑成了缩进/段落命令 (my-org-< 等),
+;; 这些命令只在 normal 态该生效; 但 mode map 在 insert 态仍被检索,
+;; 导致捕获/编辑 org 时按 < > 触发缩进而非插入字符。这里在 insert 态强制
+;; 恢复 self-insert, 保住 normal 态的 << / >> 缩进功能。(2026-08)
+(define-key meow-insert-state-keymap (kbd "<") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd ">") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd "$") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd "(") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd ")") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd "{") #'self-insert-command)
+(define-key meow-insert-state-keymap (kbd "}") #'self-insert-command)
 
 ;; ---------- surround (替代 evil-surround) ----------
 ;; 用法 (先选中内容, 再执行):
