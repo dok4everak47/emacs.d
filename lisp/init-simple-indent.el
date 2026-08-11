@@ -101,12 +101,16 @@
               (indent-to open-col))))))))
 
 (defun my-racket-format ()
-  "格式化 rkt 代码: 用 racket-indent-line 按括号深度重排整个文件缩进.
-等效 raco fmt 的缩进部分 (不需要安装 Racket 工具链)."
+  "格式化 rkt 代码: 调用官方 raco fmt -i 原地格式化 (最标准).
+需要 Racket 环境 (项目 Nix devShell 或系统 raco); 找不到 raco 时报错."
   (interactive)
-  (let ((indent-line-function #'racket-indent-line)
-        (electric-indent-inhibit nil))
-    (indent-region (point-min) (point-max))))
+  (let ((file (buffer-file-name)))
+    (unless file (error "当前 buffer 没有关联文件"))
+    (when (buffer-modified-p) (save-buffer))
+    (unless (executable-find "raco") (error "找不到 raco, 请先 nix develop 进入 Racket 环境"))
+    (if (zerop (call-process "raco" nil nil nil "fmt" "-i" file))
+        (progn (revert-buffer t t t) (message "raco fmt: 格式化完成"))
+      (error "raco fmt 执行失败"))))
 
 ;; 统一挂到所有编程语言 (prog-mode 是所有编程 mode 的父类)
 ;; ⚠️ Lisp 系 (racket/scheme/lisp/emacs-lisp) 特殊处理:
