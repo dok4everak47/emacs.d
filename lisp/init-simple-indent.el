@@ -100,6 +100,14 @@
               (delete-horizontal-space)
               (indent-to open-col))))))))
 
+(defun my-racket-format ()
+  "格式化 rkt 代码: 用 racket-indent-line 按括号深度重排整个文件缩进.
+等效 raco fmt 的缩进部分 (不需要安装 Racket 工具链)."
+  (interactive)
+  (let ((indent-line-function #'racket-indent-line)
+        (electric-indent-inhibit nil))
+    (indent-region (point-min) (point-max))))
+
 ;; 统一挂到所有编程语言 (prog-mode 是所有编程 mode 的父类)
 ;; ⚠️ Lisp 系 (racket/scheme/lisp/emacs-lisp) 特殊处理:
 ;;    它们有自己的括号深度智能缩进 (racket-indent-line / lisp-indent-line),
@@ -112,6 +120,8 @@
                   ;; Lisp 系: Enter 换行 + 括号深度智能缩进 + 括号对间开新行
                   (setq-local indent-tabs-mode nil)   ; 用空格缩进 (elisp 默认会用 tab)
                   (setq-local tab-width 2)
+                  ;; 格式化整个文件: C-c C-f (rkt 等 Lisp 系)
+                  (local-set-key (kbd "C-c C-f") #'my-racket-format)
                   ;; TAB/缩进函数用固定缩进 (每按一次 +2, 可任意次数),
                   ;; 不用 racket-indent-line 语法缩进 (按一次就固定, 无法继续缩)
                   (setq-local indent-line-function #'my-simple-indent-tab)

@@ -10,12 +10,14 @@
 
 ;; ---------- vterm: 内嵌终端 ----------
 ;; vterm 是 C 模块, 首次安装时需 cmake 编译 libvterm
-;; 如果 cmake 未安装, :ensure 会失败 — 请先 brew install cmake
+;; 快捷键: C-c v 新窗口打开终端(复用), C-c V 新窗口+强制新建终端
+;; ⚠️ vterm-other-window 是"新窗口显示同一终端"(复用 buffer);
+;; my-vterm-new-window 是"新窗口 + 强制新建" (可开多个).
 (use-package vterm
   :ensure t
   :commands (vterm vterm-other-window)
   :bind
-  (("C-c v" . vterm)                        ; 当前窗口打开/切到终端 (复用)
+  (("C-c v" . vterm-other-window)            ; 新窗口打开/切到终端 (复用)
    ("C-c V" . my-vterm-new-window))         ; 新窗口 + 强制新建终端
   :custom
   (vterm-max-scrollback 10000)             ; 回滚行数 (变量名 vterm-max-scrollback, 无 maximum)
