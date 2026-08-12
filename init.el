@@ -179,7 +179,8 @@
                        (lambda (buf)
                          (if (buffer-live-p buf)
                              (with-current-buffer buf
-                               (when (buffer-modified-p)
+                               (when (and (eq major-mode 'message-mode)
+                                          (message-field-value "to"))
                                  (message "定时发送: %s" (buffer-name buf))
                                  (message-send)))
                            (message "定时发送失败: 邮件 buffer 已被关闭")))
