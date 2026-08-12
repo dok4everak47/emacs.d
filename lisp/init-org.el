@@ -518,33 +518,35 @@
           (push f out))))
     (nreverse out)))
 
-(defun my-org-index--clean (h)
-  "清洗标题 H: 去掉状态关键字前缀和尾部所有标签, 生成链接目标。"
-  (let* ((h (replace-regexp-in-string
-             "^\\(TODO\\|DOING\\|NEXT\\|WAIT\\|HOLD\\|SOMEDAY\\|DONE\\|CANC\\)[ \t]+" "" h))
-         ;; 去掉尾部连续标签 (:工作: 或 :工作::工作: 等), 兼容重复/多个标签
-         (h (replace-regexp-in-string "[ \t]+\\(:[^:]+:\\)+[ \t]*$" "" h)))
-    (string-trim h)))
-
 (defun my-org-index--headings (file)
   "返回 FILE 的干净标题列表 (跳过空标题和'说明'条目)。
-用 org 库解析, 自动剥离 TODO 状态关键字和标签 (含中文标签, 比手写正则可靠)。"
+用 org 库解析, 自动剥离 TODO 状态关键字和标签 (含中文标签, 比手写正则可靠)。
+跳过 #+begin_.../#+end_... 结构块, 避免块内伪标题污染索引。"
   (let (out)
     (when (file-exists-p file)
       (with-temp-buffer
         (insert-file-contents file)
         (org-mode)
         (goto-char (point-min))
-        (while (re-search-forward "^*+ " nil t)
-          (beginning-of-line)
-          ;; org-heading-components 返回 (level todo todo-type priority title tags)
-          (let* ((comps (org-heading-components))
-                 (title (nth 4 comps)))
-            (when (and title
-                       (not (string-empty-p (string-trim title)))
-                       (not (string-prefix-p "说明" (string-trim title))))
-              (push (string-trim title) out)))
-          (forward-line 1)))
+        (while (not (eobp))
+          (cond
+           ;; 跳过结构块 (#+begin_src/#+begin_example ... #+end_...), 块内 * 不是标题
+           ((looking-at "^#\\+begin_\\([a-z]+\\)")
+            (let ((kw (match-string 1)))
+              (forward-line 1)
+              (when (re-search-forward (concat "^#\\+end_" kw "[ \t]*$") nil t)
+                (forward-line 1))))
+           ;; 处理标题行
+           ((looking-at "^*+[ \t]")
+            ;; org-heading-components 返回 (level todo todo-type priority title tags)
+            (let* ((comps (org-heading-components))
+                   (title (nth 4 comps)))
+              (when (and title
+                         (not (string-empty-p (string-trim title)))
+                         (not (string-prefix-p "说明" (string-trim title))))
+                (push (string-trim title) out)))
+            (forward-line 1))
+           (t (forward-line 1)))))
       (nreverse out))))
 
 (defun my-org-rebuild-index ()
