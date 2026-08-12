@@ -291,24 +291,30 @@
 (define-key meow-insert-state-keymap (kbd "C-h") #'my-simple-indent-backspace) ; C-h 退格 (按缩进单位删, 不弹 help)
 ;; Vim 式 jk 退 insert: insert 态快速按 j 后 0.35s 内按 k → 回 normal (删掉刚输入的 j)。
 ;; 其它情况 j / k 正常插入字符。timer 实现, 不依赖外部包。
+;; ⚠️ vterm (终端模拟) 里 j/k 必须发到终端进程 (vterm-send), 不能走 jk 逻辑,
+;;    否则终端里按 k 被拦截无法输入。判断 vterm-mode 则直接发送。
 (defvar my/meow-jk-timer nil "jk 退 insert 的等待 timer.")
 (defun my/meow-insert-j ()
   "Insert 'j' and arm the jk-escape timer (0.35s)."
   (interactive)
-  (insert "j")
-  (when (timerp my/meow-jk-timer) (cancel-timer my/meow-jk-timer))
-  (setq my/meow-jk-timer
-        (run-at-time 0.35 nil (lambda () (setq my/meow-jk-timer nil)))))
+  (if (derived-mode-p 'vterm-mode)
+      (vterm-send "j")
+    (insert "j")
+    (when (timerp my/meow-jk-timer) (cancel-timer my/meow-jk-timer))
+    (setq my/meow-jk-timer
+          (run-at-time 0.35 nil (lambda () (setq my/meow-jk-timer nil))))))
 (defun my/meow-insert-k ()
   "If 'j' was typed within 0.35s, delete it and exit insert; else insert 'k'."
   (interactive)
-  (if (and my/meow-jk-timer (timerp my/meow-jk-timer))
-      (progn
-        (cancel-timer my/meow-jk-timer)
-        (setq my/meow-jk-timer nil)
-        (delete-char -1)          ; 删掉刚输入的 j
-        (meow-insert-exit))       ; 回 normal
-    (insert "k")))
+  (if (derived-mode-p 'vterm-mode)
+      (vterm-send "k")
+    (if (and my/meow-jk-timer (timerp my/meow-jk-timer))
+        (progn
+          (cancel-timer my/meow-jk-timer)
+          (setq my/meow-jk-timer nil)
+          (delete-char -1)          ; 删掉刚输入的 j
+          (meow-insert-exit))       ; 回 normal
+      (insert "k"))))
 (define-key meow-insert-state-keymap (kbd "j") #'my/meow-insert-j)
 (define-key meow-insert-state-keymap (kbd "k") #'my/meow-insert-k)
 ;; org-mode-map 把 < > (及 $ ( ) { }) 绑成了缩进/段落命令 (my-org-< 等),
