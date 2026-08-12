@@ -636,5 +636,25 @@
 (unless (file-exists-p org-directory)
   (make-directory org-directory t))
 
+;; ---------- org-roam: 笔记网络 (Zettelkasten) ----------
+;; 独立目录 ~/org-roam/, 完全隔离现有 ~/org/ (任务/agenda/index 不受影响)。
+;; org-roam 默认目录就是 ~/org-roam/, 数据库在 ~/.emacs.d/org-roam.db (Emacs 30 内置 sqlite)。
+;; 反向链接在 normal 态下的 buffer 底部显示 (哪些笔记引用了当前笔记)。
+;; ⚠️ 前缀用 C-c r (roam), 因为 C-c n 已被 my-open-line-below (init-lazycat) 占用。
+(use-package org-roam
+  :ensure t
+  :bind (("C-c r i" . org-roam-node-insert)   ; 插入指向某笔记的链接
+         ("C-c r f" . org-roam-node-find)      ; 按标题查找笔记
+         ("C-c r c" . org-roam-capture)        ; 捕获新笔记
+         ("C-c r r" . org-roam-ref-find))      ; 按引用查找
+  :custom
+  (org-roam-directory (expand-file-name "~/org-roam/"))
+  (org-roam-db-gc-threshold 1000)            ; 数据库 GC 阈值
+  (org-roam-mode-sections '(org-roam-backlinks-section
+                            org-roam-reflinks-section)) ; 底部显示反向链接
+  :config
+  ;; org-roam-db-autosync-mode: 自动同步数据库 (增删改自动更新)
+  (org-roam-db-autosync-mode +1))
+
 (provide 'init-org)
 ;;; init-org.el ends here
