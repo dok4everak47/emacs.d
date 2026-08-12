@@ -28,6 +28,7 @@
   (org-startup-indented t)                  ; 内容自动缩进对齐标题
   (org-hide-leading-stars t)                ; 隐藏前导星号 (更干净)
   (org-ellipsis " ⤵")                       ; 折叠内容显示符号
+  (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
   (org-default-notes-file "~/org/inbox.org") ; capture 默认文件
   (org-agenda-files '("~/org"))             ; agenda 搜索目录
@@ -55,6 +56,15 @@
   ;; 导出选项
   (setq org-export-with-toc t               ; 导出含目录
         org-export-with-section-numbers nil)) ; 不加章节编号 (1. 1.1)
+
+;; ---------- 隐藏 org 菜单栏多余菜单 (2026-08-12) ----------
+;; org-mode-map 的 menu-bar 挂了 Table / Org / Text 三个菜单,
+;; 用户要精简菜单栏 (功能快捷键照常, 只去菜单项)。
+;; 直接 define-key 删除 menu-bar 子键最可靠 (easy-menu-remove-menu 需 emacs-menu 加载)。
+;; 放加载时执行即可, org-mode-map 此时已存在; org-mode 每次开启不会重挂。
+(define-key org-mode-map [menu-bar table] nil)
+(define-key org-mode-map [menu-bar org] nil)
+(define-key org-mode-map [menu-bar text] nil)
 
 ;; ---------- org-modern: 现代化外观 ----------
 ;; 用 Unicode 符号替代星号标题, TODO 关键字彩色背景, 标签美化
@@ -486,6 +496,95 @@
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览
 (global-set-key (kbd "C-c c") #'org-capture)        ; 快速捕获
 (global-set-key (kbd "C-c l") #'org-store-link)      ; 存储链接 (org 文件可插入)
+
+;; ---------- 笔记索引自动重建 ----------
+;; 保存 ~/org/ 下笔记文件时, 自动重建 ~/org/index.org (笔记总入口)。
+;; 跨文件跳标题链接: [[file:路径::*标题][显示名]]
+(defcustom my-org-index-exclude-files
+  '("index.org" "inbox.org" "projects.org" "areas.org" "habits.org"
+    "someday.org" "gcal.org" "gcal-holidays.org")
+  "不进笔记索引的文件名 (任务类/日历类 + index 自身)。除此外 ~/org/ 下所有 .org 自动索引。"
+  :type '(repeat string)
+  :group 'org)
+
+(defun my-org-index-files ()
+  "返回参与索引的笔记文件 (绝对路径): ~/org/ 下所有 .org,
+排除 my-org-index-exclude-files 和 Emacs 锁定文件 (.# 开头)。"
+  (let (out)
+    (dolist (f (directory-files org-directory t "\\.org\\'"))
+      (let ((name (file-name-nondirectory f)))
+        (unless (or (member name my-org-index-exclude-files)
+                    (string-prefix-p ".#" name))
+          (push f out))))
+    (nreverse out)))
+
+(defun my-org-index--clean (h)
+  "清洗标题 H: 去掉状态关键字前缀和尾部所有标签, 生成链接目标。"
+  (let* ((h (replace-regexp-in-string
+             "^\\(TODO\\|DOING\\|NEXT\\|WAIT\\|HOLD\\|SOMEDAY\\|DONE\\|CANC\\)[ \t]+" "" h))
+         ;; 去掉尾部连续标签 (:工作: 或 :工作::工作: 等), 兼容重复/多个标签
+         (h (replace-regexp-in-string "[ \t]+\\(:[^:]+:\\)+[ \t]*$" "" h)))
+    (string-trim h)))
+
+(defun my-org-index--headings (file)
+  "返回 FILE 的干净标题列表 (跳过空标题和'说明'条目)。
+用 org 库解析, 自动剥离 TODO 状态关键字和标签 (含中文标签, 比手写正则可靠)。"
+  (let (out)
+    (when (file-exists-p file)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (org-mode)
+        (goto-char (point-min))
+        (while (re-search-forward "^*+ " nil t)
+          (beginning-of-line)
+          ;; org-heading-components 返回 (level todo todo-type priority title tags)
+          (let* ((comps (org-heading-components))
+                 (title (nth 4 comps)))
+            (when (and title
+                       (not (string-empty-p (string-trim title)))
+                       (not (string-prefix-p "说明" (string-trim title))))
+              (push (string-trim title) out)))
+          (forward-line 1)))
+      (nreverse out))))
+
+(defun my-org-rebuild-index ()
+  "重建 ~/org/index.org: 汇总笔记文件的标题, 生成跨文件跳转链接。"
+  (interactive)
+  (let ((lines (list "#+title: 笔记索引 (Notes Index)"
+                     "#+STARTUP: content"
+                     ""
+                     "* 使用说明"
+                     "  自动重建: 保存 ~/org 下笔记文件时更新。C-c C-o 打开链接。"
+                     "  任务类 (projects/inbox/habits/areas/someday) 由 Agenda 管理, 不在索引。")))
+    ;; 笔记文件标题 (自动扫描, 排除任务/日历类)
+    (dolist (file (my-org-index-files))
+      (let ((hs (my-org-index--headings file)))
+        (when hs
+          (setq lines (append lines
+                              (list "" (format "* %s" (file-name-nondirectory file)))))
+          (dolist (h hs)
+            (setq lines (append lines (list (format "  - [[file:%s::*%s][%s]]" file h h))))))))
+    ;; 附录: 全部笔记 org 文件 (与正文同集, 用 ~/org/ 相对形式)
+    (setq lines (append lines '("" "* 附录: 全部笔记文件快速跳转")))
+    (dolist (f (my-org-index-files))
+      (let* ((rel (file-relative-name f (expand-file-name org-directory)))
+             (target (concat (file-name-as-directory org-directory) rel)))
+        (setq lines (append lines (list (format "  - [[file:%s][%s]]" target rel))))))
+    (with-temp-buffer
+      (insert (mapconcat #'identity lines "\n") "\n")
+      (write-file (expand-file-name "index.org" org-directory)))
+    (message "笔记索引已重建")))
+
+(defun my-org-maybe-rebuild-index ()
+  "保存 ~/org 下笔记文件后自动重建索引 (跳过任务/日历类和 index 自身, 避免循环)。"
+  (let ((f (and (buffer-file-name)
+                (expand-file-name (buffer-file-name)))))
+    (when (and f
+               (string-prefix-p (expand-file-name org-directory) f)
+               (not (member (file-name-nondirectory f) my-org-index-exclude-files)))
+      (my-org-rebuild-index))))
+
+(add-hook 'after-save-hook #'my-org-maybe-rebuild-index)
 
 ;; ---------- 确保 org 目录存在 ----------
 (unless (file-exists-p org-directory)
