@@ -71,7 +71,7 @@
                       )        ← 缩进 0, 对齐 (define (f)"
   (interactive)
   (let ((close-paren (and (not (eobp))
-                          (eq (char-after) ?\))))   ; 光标后紧跟右括号
+                          (memq (char-after) '(?\) ?\])))) ; 光标后紧跟右括号/右方括号
         (empty-line (save-excursion
                       (beginning-of-line)
                       (looking-at-p "^[ \t]*$")))
