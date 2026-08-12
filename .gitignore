@@ -34,3 +34,10 @@ servers.el
 
 # projectile 运行数据 (项目历史/收藏缓存, 每台机器不同)
 projectile-*.eld
+
+# project.el 项目缓存 (自动生成, 每台机器不同)
+projects
+
+# org-roam 数据库 (派生数据, 可从 ~/org-roam/*.org 重建)
+org-roam.db
+org-roam.db-*
