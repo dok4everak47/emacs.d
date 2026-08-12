@@ -116,7 +116,31 @@
   :commands (org-agenda org-agenda-list org-agenda-capture)
   :defer t
   :config
-  (require 'org-habit))
+  (require 'org-habit)
+  ;; ---------- Appointment 主动提醒 (弹 macOS 系统通知) ----------
+  ;; org 自身不主动提醒, 靠 appt: 把带"具体时刻"的 DEADLINE:/SCHEDULED: 条目
+  ;; 导入 appt 队列, 到点前调用函数发 macOS 通知 (即使焦点在别的 app 也弹)。
+  ;; ⚠️ 前提: Emacs 需保持运行 (appt 是 Emacs 内 timer)。
+  ;; appt 调用本函数时传 (min-to-app new-time appt-msg) 三参, appt-msg 是要显示的消息(可能是列表)。
+  (defun my-org-appt-notify (min-to-app new-time appt-msg)
+    "Appt 触发: 发 macOS 系统通知 (标题=提醒, 内容=appt 消息)."
+    (let ((msgs (if (listp appt-msg) appt-msg (list appt-msg))))
+      (dolist (m msgs)
+        (when (and m (stringp m) (not (string-empty-p m)))
+          (start-process "my-org-appt-notify" nil
+                         "osascript" "-e"
+                         (format "display notification %S with title %S sound name \"Glass\""
+                                 m
+                                 "⏰ Emacs 提醒"))))))
+  ;; 提前 10 分钟提醒; 之后每 5 分钟重提醒一次
+  (setq appt-message-warning-time 10
+        appt-display-interval 5)
+  ;; 用自定义的 macOS 通知函数替代默认弹窗
+  (setq appt-disp-window-function #'my-org-appt-notify)
+  ;; 打开 agenda 时把带时刻的 org 条目导入 appt 队列
+  (add-hook 'org-agenda-finalize-hook #'org-agenda-to-appt)
+  ;; 激活 appt 计时器
+  (appt-activate 1))
 
 ;; --- 表感知的句子移动 (原 evil-org-forward/backward-sentence) ---
 (defun my-org-forward-sentence (count)
