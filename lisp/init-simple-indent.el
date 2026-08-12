@@ -155,5 +155,39 @@
 ;; meow insert 态 C-h 退格 → 按缩进单位删, 已直接在 init-meow.el 的
 ;; meow-insert-state-keymap 定义处覆盖 (比 with-eval-after-load 可靠, 加载顺序无关)。
 
+;;; Racket 保存时用官方 raco fmt 格式化
+;; raco 只在项目 Nix devShell 里 (不装全局)。保存时把 buffer 写临时文件,
+;; 在项目目录跑 `nix develop -c raco fmt -i`, 再用 replace-buffer-contents
+;; 同步回 buffer (保留 undo 和光标位置)。这样 C-x C-s 存盘的就是格式化后的内容。
+;; 仅在 racket-mode 且 buffer 有文件名时生效; raco 失败则静默保留原文, 不阻断保存。
+(defun my/racket-format-before-save ()
+  "保存前用 raco fmt 格式化当前 Racket buffer (若可用)."
+  (when (and (derived-mode-p 'racket-mode)
+             (buffer-file-name))
+    (let ((tmpfile (make-temp-file "racket-fmt-" nil ".rkt"))
+          (orig-buf (current-buffer))
+          (fmt-buf (get-buffer-create " *racket-fmt*")))
+      (unwind-protect
+          (progn
+            (write-region (point-min) (point-max) tmpfile)
+            (if (zerop (call-process "nix" nil nil nil "develop" "-c"
+                                     "raco" "fmt" "--width" "35" "-i" tmpfile))
+                ;; fmt-buf 载入格式化结果, 再同步回原 buffer (保留 undo/光标)
+                (with-current-buffer fmt-buf
+                  (erase-buffer)
+                  (insert-file-contents tmpfile))
+              (message "raco fmt 失败: 无法在项目 devShell 运行 raco")))
+        (delete-file tmpfile)
+        (with-current-buffer orig-buf
+          (unless (equal (buffer-string)
+                         (with-current-buffer fmt-buf (buffer-string)))
+            (replace-buffer-contents fmt-buf)))
+        (kill-buffer fmt-buf)))))
+
+(with-eval-after-load 'racket-mode
+  (add-hook 'racket-mode-hook
+            (lambda ()
+              (add-hook 'before-save-hook #'my/racket-format-before-save nil t))))
+
 (provide 'init-simple-indent)
 ;;; init-simple-indent.el ends here
