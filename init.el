@@ -138,6 +138,58 @@
 (require 'message)
 (define-key message-mode-map (kbd "C-c m s") #'my-mail-switch-account)
 
+;; ================= 定时发送 =================
+;; C-c m t → 提示输入发送时间, 到点自动发送当前邮件
+;; 时间格式: "19:00" 今天19点 / "09:30+1" 明天9点半 / "8h" 8小时后
+(defvar my-mail-timer nil "当前邮件的定时发送 timer.")
+(defvar my-mail-timer-string nil "定时发送时间的人类可读描述.")
+
+(defun my-mail-parse-time (s)
+  "解析定时时间 S: '19:00' 今天 / '09:30+1' 明天 / '8h' 8小时后.
+返回绝对时间 (encode-time 兼容), 解析失败返回 nil."
+  (cond
+   ((string-match "^\\([0-9]\\{1,2\\}\\):\\([0-9]\\{2\\}\\)\\(\\+[0-9]+\\)?$" s)
+    (let* ((hh (string-to-number (match-string 1 s)))
+           (mm (string-to-number (match-string 2 s)))
+           (days (if (match-string 3 s)
+                     (string-to-number (substring (match-string 3 s) 1))
+                   0))
+           (base (decode-time (current-time))))
+      (setf (nth 2 base) hh (nth 1 base) mm (nth 0 base) 0)
+      (when (and (= days 0)
+                 (time-less-p (apply 'encode-time base) (current-time)))
+        (setf (nth 3 base) (+ (nth 3 base) 1)))  ; 时间已过→明天
+      (setf (nth 3 base) (+ (nth 3 base) days))
+      (apply 'encode-time base)))
+   ((string-match "^\\([0-9]+\\)h$" s)
+    (time-add (current-time) (* 3600 (string-to-number (match-string 1 s)))))
+   (t nil)))
+
+(defun my-mail-send-at (time-str)
+  "定时发送当前邮件: 到 TIME-STR 自动 message-send.
+用法示例: 19:00 (今天19点) / 09:30+1 (明天9点半) / 8h (8小时后)."
+  (interactive "s定时发送时间 (例 19:00 / 09:30+1 / 8h): ")
+  (unless (eq major-mode 'message-mode)
+    (user-error "当前不是邮件 buffer"))
+  (let ((target (my-mail-parse-time time-str)))
+    (unless target (user-error "时间格式不对: 用 19:00 / 09:30+1 / 8h"))
+    (when my-mail-timer (cancel-timer my-mail-timer))
+    (setq my-mail-timer
+          (run-at-time target nil
+                       (lambda (buf)
+                         (if (buffer-live-p buf)
+                             (with-current-buffer buf
+                               (when (buffer-modified-p)
+                                 (message "定时发送: %s" (buffer-name buf))
+                                 (message-send)))
+                           (message "定时发送失败: 邮件 buffer 已被关闭")))
+                       (current-buffer))
+          my-mail-timer-string
+          (format-time-string "%m-%d %H:%M" target))
+    (message "已设定 %s 定时发送 (%s)" my-mail-timer-string time-str)))
+
+(define-key message-mode-map (kbd "C-c m t") #'my-mail-send-at)
+
 ;; ================= 附件: 人性化方案 =================
 ;; 1) C-c C-a → macOS 原生文件选择对话框 (不再手输路径)
 ;; 2) 从 Finder 拖文件到邮件窗口 → 自动附加
