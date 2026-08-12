@@ -54,6 +54,17 @@
             :override
             (lambda () (tab-bar-buffers--interesting-buffers)))
 
+;; ⚠️ 排除 .org 文件 buffer 不进 tab-bar: 打开 agenda (C-c a) 时 org 会
+;; 把 ~/org/ 下所有文件读进 buffer, tab-bar-buffers 每个 buffer 一个 tab,
+;; 导致一堆 org 文件 tab。org 文件用 C-x b / dired 访问, 不需进 tab。
+;; 用 :around advice 拦截 interesting-buffer-p, .org 一律 nil。
+(defun my-tbb-hide-org-around (orig buffer)
+  (if (and (bufferp buffer) (buffer-name buffer)
+           (string-suffix-p ".org" (buffer-name buffer)))
+      nil
+    (funcall orig buffer)))
+(advice-add 'tab-bar-buffers--interesting-buffer-p :around #'my-tbb-hide-org-around)
+
 ;; ---------- 窗口分屏方向 (Dired o / find-file-other-window 等) ----------
 ;; split-window-sensibly 规则: 窗口 >= split-width-threshold 字符宽 → 左右分;
 ;; 否则 >= split-height-threshold 行高 → 上下分; 都够不着且是唯一窗口 → 往下劈。
