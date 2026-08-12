@@ -660,6 +660,7 @@
 (require 'init-simple-indent nil t)   ; 编程语言统一简单缩进 (TAB 固定 2 空格 + RET 智能继承)
 (require 'init-meow nil t)
 (require 'init-org nil t)
+(require 'init-dashboard nil t)   ; 自写双栏 Dashboard 主页 (依赖 org/projectile/recentf, 放 org 后)
 (require 'init-lazycat nil t)
 
 ;; ================= 126 IMAP: 登录后发 ID 命令 (网易风控) =================

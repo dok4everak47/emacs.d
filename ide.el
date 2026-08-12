@@ -9,7 +9,6 @@
 (declare-function dired-sidebar-toggle-sidebar "dired-sidebar")
 (declare-function dired-sidebar-jump-to-sidebar "dired-sidebar")
 (declare-function mood-line-mode "mood-line")
-(declare-function dashboard-setup-startup-hook "dashboard")
 (declare-function doom-themes-visual-bell-config "doom-themes")
 
 ;; ---------- 包管理: 内置 package.el + 清华镜像 ----------
@@ -201,98 +200,13 @@
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
-;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
+;; ---------- Dashboard 主页 (自写双栏 home screen, 2026-08) ----------
+;; 替代 emacs-dashboard 包: 双栏四块 (Today's Agenda | TODO / Recent | Projects)。
+;; 实现移到 lisp/init-dashboard.el (init.el 加载链 require)。
 ;; C-c h 随时回到 Dashboard (home)
-(global-set-key (kbd "C-c h") #'dashboard-open)
-(use-package nerd-icons
-  :ensure t
-  :when (display-graphic-p)
-  :demand t)
+(global-set-key (kbd "C-c h") #'my-dashboard)
 
-(use-package dashboard
-  :ensure t
-  :init
-  ;; Navigator 按钮分两行: 第一行 = 邮件 + IDE, 第二行 = 人生管理 (org)
-  ;; (fboundp 守卫: nerd-icons 未加载时回退到文字图标)
-  (setq dashboard-navigator-buttons
-        `(((,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-mail") "✉")
-            "收邮件" "Gnus 收邮件"
-            (lambda (&rest _) (gnus)))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-pencil") "✍")
-            "Gmail" "撰写 Gmail"
-            (lambda (&rest _) (my-compose-gmail)))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-paper_airplane") "✈")
-            "126" "撰写 126 邮件"
-            (lambda (&rest _) (my-compose-mail126)))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-file_directory") "📂")
-            "文件树" "打开 dired-sidebar 侧边栏"
-            (lambda (&rest _) (dired-sidebar-toggle-sidebar)))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-sign_out") "🚪")
-            "退出" "退出 Emacs"
-            (lambda (&rest _) (save-buffers-kill-terminal))))
-          ;; 第二行: 人生管理 (org)
-          ((,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-calendar") "📅")
-            "日程" "人生管理主视图: 本周日程 + 待办"
-            (lambda (&rest _) (org-agenda nil "n")))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-plus") "✚")
-            "捕获" "快速捕获任务/笔记 (C-c c)"
-            (lambda (&rest _) (org-capture)))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-inbox") "📥")
-            "收件箱" "打开收集箱 inbox.org"
-            (lambda (&rest _) (find-file "~/org/inbox.org")))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-repo") "🗂")
-            "项目" "打开项目树 projects.org"
-            (lambda (&rest _) (find-file "~/org/projects.org")))
-           (,(if (fboundp 'nerd-icons-octicon)
-                 (nerd-icons-octicon "nf-oct-book") "📔")
-            "日记" "打开日记 journal.org"
-            (lambda (&rest _) (find-file "~/org/journal.org"))))))
-  (dashboard-setup-startup-hook)
-  :custom
-  (dashboard-startup-banner 'logo)
-  (dashboard-set-heading-icons t)
-  (dashboard-set-file-icons t)
-  (dashboard-center-content t)
-  (dashboard-vertically-center-content t)
-  (dashboard-banner-logo-title "Welcome to Emacs")
-  ;; 最近文件/项目数量 (recents 太多会刷屏)
-  (dashboard-items '((recents . 6)
-                     (projects . 5)))
-  (dashboard-projects-backend 'projectile)
-  ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
-  (dashboard-path-style 'truncate-beginning)
-  (dashboard-path-max-length 40)
-  ;; footer 固定文案 (默认是随机英文梗语录), 带 Emacs 版本号
-  (dashboard-footer-messages
-   (list (format "Happy hacking! · Emacs %s" emacs-version)))
-  (dashboard-startupify-list
-   '(dashboard-insert-banner
-     dashboard-insert-newline
-     dashboard-insert-banner-title
-     dashboard-insert-newline
-     dashboard-insert-navigator
-     dashboard-insert-newline
-     dashboard-insert-init-info
-     dashboard-insert-newline
-     dashboard-insert-items
-     dashboard-insert-newline
-     dashboard-insert-footer))
-  :custom-face
-  ;; 标题放大加粗 (默认 inherit default)
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold))))
-  ;; footer 亮灰斜体 (默认继承 widget-button, 颜色偏暗)
-  (dashboard-footer-face ((t (:foreground "#aaaaaa" :slant italic)))))
-
-;; 最近文件记录 (dashboard recents 依赖)
+;; 最近文件记录 (recents 依赖)
 (recentf-mode 1)
 
 ;; tab-bar-tab-name-format: 用默认 (tab-bar-buffers 自带文件名显示)
