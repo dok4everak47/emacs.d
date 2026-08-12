@@ -44,7 +44,10 @@
 
 ;; 前置加载: 消除编译期 "might not be defined" 警告 (运行时 use-package 会再次处理, 幂等)
 (require 'meow nil t)
-(require 'org-agenda nil t)
+;; org-agenda 不在此 require (会破坏 lazy-load); meow 的 org-agenda state 用 symbol
+;; 引用 (#'org-agenda-* 和 org-agenda-mode), 运行时解析, 无需预加载。
+;; 注: 不加 eval-when-compile require org-agenda — 实测会让编译产物在运行时把
+;; org-agenda 当变量求值, 导致 void-variable。保留编译期警告 (无害, 运行时正常)。
 (require 'surround nil t)
 ;; 编译期声明 (变量在 meow-var.el 加载后才有定义, 此处 defvar 不覆盖运行时值)
 (defvar meow-keypad-self-insert-undefined nil)

@@ -18,6 +18,9 @@
 (defvar org-clock-in-switch-to-state nil)
 (defvar org-clock-out-remove-zero-time-clocks nil)
 (defvar org-clock-persist nil)
+(defvar org-agenda-custom-commands nil)   ; org-agenda lazy-load 前需声明 (定义在 org-agenda.el)
+;; 注: 勿 defvar org-agenda-span — defvar 在有值时不会重置, 若置 nil 会覆盖
+;; org-agenda.el 的 defcustom 默认值(week), 导致 C-c a 报 number-or-marker-p nil。
 (declare-function org-gcal-reload-client-id-secret "org-gcal.el" ())
 
 ;; ---------- org: 核心 ----------
@@ -101,7 +104,19 @@
 ;;   - 文本对象 → meow thing (, 或 . + E/R/G)
 (require 'cl-lib)
 (require 'org)
-(require 'org-agenda)
+
+;; ---------- org-agenda: 懒加载 ----------
+;; 不 require (启动省 ~60ms), 首次用 C-c a 才加载。
+;; 变量 org-agenda-custom-commands 已在顶部 defvar 声明 (避免本文件下方 setq 报
+;; void-variable); 实际定义在 org-agenda.el, lazy 加载后生效。
+;; 注意: 勿 defvar org-agenda-span (见顶部注释) — 它靠 org-agenda.el 的 defcustom 设默认值。
+;; meow 的 org-agenda state 用 symbol 引用 (#'org-agenda-*), 运行时解析, 不受影响。
+(use-package org-agenda
+  :ensure nil
+  :commands (org-agenda org-agenda-list org-agenda-capture)
+  :defer t
+  :config
+  (require 'org-habit))
 
 ;; --- 表感知的句子移动 (原 evil-org-forward/backward-sentence) ---
 (defun my-org-forward-sentence (count)
@@ -493,7 +508,8 @@
 ;; ---------- org-habit: 习惯追踪 ----------
 ;; 习惯条目: TODO + SCHEDULED: <日期 .+1d> (每天) / .+1w (每周)
 ;; 在 agenda 视图里显示习惯图 (●●○○○○○), 标记 DONE 自动推进到下一周期
-(require 'org-habit)
+;; 注: org-habit 内部 require org-agenda, 加载时会连带拉起 org-agenda,
+;; 故 org-habit 也一并 lazy (在 org-agenda 的 use-package :config 里 require)。
 (setq org-habit-graph-column 80)          ; 习惯图起始列 (给任务名留空间)
 
 ;; ---------- 全局快捷键 ----------
