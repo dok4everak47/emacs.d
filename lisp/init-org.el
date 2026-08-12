@@ -31,7 +31,11 @@
   (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
   (org-default-notes-file "~/org/inbox.org") ; capture 默认文件
-  (org-agenda-files '("~/org"))             ; agenda 搜索目录
+  (org-agenda-files '("~/org/inbox.org"   ; Agenda 只扫描任务文件 + 节假日
+                      "~/org/projects.org"
+                      "~/org/areas.org"
+                      "~/org/habits.org"
+                      "~/org/gcal-holidays.org"))
   (org-log-done 'time)                      ; 完成任务时记录时间戳
   (org-todo-keywords                        ; 任务状态流转 (GTD)
    ;; NEXT=下一步行动 / TODO=待澄清 / DOING=进行中 / WAIT=等待别人
