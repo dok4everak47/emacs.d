@@ -166,22 +166,25 @@
              (buffer-file-name))
     (let ((tmpfile (make-temp-file "racket-fmt-" nil ".rkt"))
           (orig-buf (current-buffer))
-          (fmt-buf (get-buffer-create " *racket-fmt*")))
+          (fmt-buf (get-buffer-create " *racket-fmt*"))
+          (fmt-ok nil))                     ; raco 是否成功
       (unwind-protect
           (progn
             (write-region (point-min) (point-max) tmpfile)
-            (if (zerop (call-process "nix" nil nil nil "develop" "-c"
-                                     "raco" "fmt" "--width" "35" "-i" tmpfile))
-                ;; fmt-buf 载入格式化结果, 再同步回原 buffer (保留 undo/光标)
-                (with-current-buffer fmt-buf
-                  (erase-buffer)
-                  (insert-file-contents tmpfile))
-              (message "raco fmt 失败: 无法在项目 devShell 运行 raco")))
+            (when (zerop (call-process "nix" nil nil nil "develop" "-c"
+                                       "raco" "fmt" "--width" "35" "-i" tmpfile))
+              ;; raco 成功 → 载入格式化结果到 fmt-buf
+              (with-current-buffer fmt-buf
+                (erase-buffer)
+                (insert-file-contents tmpfile))
+              (setq fmt-ok t)))
         (delete-file tmpfile)
-        (with-current-buffer orig-buf
-          (unless (equal (buffer-string)
-                         (with-current-buffer fmt-buf (buffer-string)))
-            (replace-buffer-contents fmt-buf)))
+        ;; 仅在 raco 成功且内容确有变化时才同步回原 buffer, 否则原样保留 (绝不清空)
+        (when fmt-ok
+          (with-current-buffer orig-buf
+            (unless (equal (buffer-string)
+                           (with-current-buffer fmt-buf (buffer-string)))
+              (replace-buffer-contents fmt-buf))))
         (kill-buffer fmt-buf)))))
 
 (with-eval-after-load 'racket-mode
