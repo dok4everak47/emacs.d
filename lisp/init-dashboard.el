@@ -2,35 +2,33 @@
 
 ;;; Commentary:
 ;;
-;; 替代 emacs-dashboard 包, 自写双栏 home screen (2026-08 重构)。
+;; 替代 emacs-dashboard 包, 自写双栏 home screen (2026-08 重构 v3)。
 ;; 设计原则: Dashboard 是"个人工作台首页", 只做概览不堆信息:
-;;   - Today's Agenda: 只显示摘要 (带时间条目 + Habits ×N), 完整看 C-c a
-;;   - TODO:           只显示最重要 5 条
-;;   - Recent Files:   5-6 条, 过滤临时文件
-;;   - Projects:       去重, 最多 5 个
-;;   - Quick Actions:  一行常用操作 (填充利用率)
-;;   - 隐藏行号/cursor/mode-line (buffer-local, 不破坏正常操作)
+;;   - Today's Agenda: 只显示摘要 (时间+文件 / Habits ×N / → Open Agenda)
+;;   - TODO:           只显示最重要 N 条 (• 标题, 超出显示 +N more)
+;;   - Recent Files:   N 条, 过滤临时文件
+;;   - Projects:       去重, 最多 N 个
+;;   - 四宫格固定尺寸 (列宽+行数可调), 真正对齐
+;;   - 整个 Dashboard 按 frame 宽度动态居中
+;;   - 隐藏行号/cursor/mode-line (buffer-local)
 ;;
 ;; 数据源:
 ;;   - Today's Agenda: org-agenda-list (真实生成, 只取摘要)
-;;   - TODO:            org-todo-list "NEXT|TODO|DOING|HOLD" (取前 5)
+;;   - TODO:            org-todo-list "NEXT|TODO|DOING|HOLD"
 ;;   - Recent Files:    recentf-list (过滤临时/不存在)
-;;   - Projects:        projectile-known-projects (按显示名去重)
+;;   - Projects:        projectile-known-projects (折叠空格去重)
 ;;
 ;; 布局 (用户 mockup):
-;;                  EMACS
-;;        [Agenda] [Inbox] [Capture] [Mail]
-;;   ┌────────────┐ ┌────────────┐
-;;   │ Today's    │ │ TODO       │
-;;   │ Agenda     │ │            │
-;;   └────────────┘ └────────────┘
-;;   ┌────────────┐ ┌────────────┐
-;;   │ Recent     │ │ Projects   │
-;;   │ Files      │ │            │
-;;   └────────────┘ └────────────┘
-;;        [A] Agenda [C] Capture [I] Inbox [P] Projects [M] Mail
-;;
-;; 按钮用 make-text-button (最可靠), 鼠标可点 + 键盘直达。
+;;                         EMACS
+;;              📅 Agenda  📥 Inbox  ＋ Capture  ✉ Mail
+;;             ┌──────────────┐  ┌──────────────┐
+;;             │ Today's      │  │ TODO         │
+;;             │ Agenda       │  │ • 更新简历   │
+;;             └──────────────┘  └──────────────┘
+;;             ┌──────────────┐  ┌──────────────┐
+;;             │ Recent Files │  │ Projects     │
+;;             └──────────────┘  └──────────────┘
+;;                         Happy hacking!
 
 ;;; Code:
 
@@ -42,15 +40,20 @@
   "Dashboard buffer 名."
   :type 'string :group 'my-dashboard)
 
-(defcustom my-dash-col-width 46
-  "每栏内容列宽 (字符数). 双栏共约 2*col-width."
+;; ---- 布局尺寸 (可调) ----
+(defcustom my-dash-col-width 40
+  "每栏内容列宽 (字符数, 含边框)."
+  :type 'integer :group 'my-dashboard)
+
+(defcustom my-dash-block-rows 8
+  "每个 box 内容区行数 (固定高度, 不足补空行, 超出截断)."
   :type 'integer :group 'my-dashboard)
 
 (defcustom my-dash-todo-count 5
   "TODO 区最多显示条数."
   :type 'integer :group 'my-dashboard)
 
-(defcustom my-dash-recents-count 6
+(defcustom my-dash-recents-count 5
   "Recent Files 最多显示条数."
   :type 'integer :group 'my-dashboard)
 
@@ -58,13 +61,17 @@
   "Projects 最多显示条数."
   :type 'integer :group 'my-dashboard)
 
+(defcustom my-dash-v-offset 2
+  "垂直偏移 (正数=内容下移, 负数=上移)."
+  :type 'integer :group 'my-dashboard)
+
 ;; ---------- 数据提取 ----------
 
 (defun my-dash-agenda-summary ()
   "返回 Today's Agenda 摘要 (字符串行列表).
-只提取带具体时刻的非习惯条目 + 习惯计数, 不复制完整 agenda."
+只提取带具体时刻的非习惯条目 + 习惯计数. 格式: '22:00 Inbox' / '      Scheduled: ...'."
   (let ((buf (get-buffer-create " *my-dash-agenda*"))
-        lines (habits 0) (out '()))
+        lines (habits 0) (items '()))
     (with-current-buffer buf
       (erase-buffer)
       (condition-case nil (org-agenda-list) (error nil))
@@ -74,22 +81,28 @@
     (kill-buffer buf)
     (dolist (l lines)
       (cond
-       ;; 习惯条目 → 计数 (Sched. 6x / Scheduled + :habit:)
+       ;; 习惯条目 → 计数
        ((string-match "habit" l) (cl-incf habits))
-       ;; 非习惯条目, 且带具体时刻 HH:MM → 摘要显示
-       ((and (string-match "^[[:space:]]*[A-Za-z0-9_-]+:" l)
-             (string-match "[0-9][0-9]:[0-9][0-9]" l))
-        (push (string-trim (replace-regexp-in-string "[[:space:]]+" " " l)) out))))
-    ;; 习惯计数放最前
+       ;; 带具体时刻的条目 → 解析 "file: 22:00 ... Scheduled: ..."
+       ((string-match
+         "^[[:space:]]*\\([A-Za-z0-9_-]+\\):[[:space:]]*\\([0-9][0-9]:[0-9][0-9]\\)[^:]*:[[:space:]]*\\(.*\\)"
+         l)
+        (let ((file (match-string 1 l))
+              (time (match-string 2 l))
+              (rest (string-trim (match-string 3 l))))
+          (push (format "%s %s" time (capitalize file)) items)
+          (when (not (string-empty-p rest))
+            (push (format "   %s" rest) items))))))
+    ;; 组装: Habits 计数 + 条目 (条目反转回原顺序)
     (let ((result '()))
       (when (> habits 0)
         (push (format "Habits × %d" habits) result))
-      (append result (reverse out)))))
+      (append result (reverse items)))))
 
 (defun my-dash-todo-summary ()
-  "返回 TODO 摘要 (最多 my-dash-todo-count 条, 格式 '状态 标题')."
+  "返回 TODO 摘要 (最多 my-dash-todo-count 条, 格式 '• 标题')."
   (let ((buf (get-buffer-create " *my-dash-todo*"))
-        lines (out '()))
+        lines (out '()) (total 0))
     (with-current-buffer buf
       (erase-buffer)
       (condition-case nil (org-todo-list "NEXT|TODO|DOING|HOLD") (error nil))
@@ -103,14 +116,20 @@
                  "^[A-Za-z0-9_-]+:[[:space:]]+\\(NEXT\\|TODO\\|DOING\\|HOLD\\)[[:space:]]+\\(.*\\)"
                  trimmed)))
         (when m
-          (let* ((st (match-string 1 trimmed))
-                 (ti (match-string 2 trimmed))
-                 ;; 去掉行尾所有 tag 部分: ":project:" / ":project::" / ":project"
+          (cl-incf total)
+          (let* ((ti (match-string 2 trimmed))
                  (ti (replace-regexp-in-string "[[:space:]]*:[^[:space:]:]+:+[[:space:]]*$" "" ti))
                  (ti (string-trim ti)))
             (when (not (string-empty-p ti))
-              (push (format "%s %s" st ti) out))))))
-    (reverse (cl-subseq (reverse out) 0 (min my-dash-todo-count (length out))))))
+              (push ti out))))))
+    ;; 取前 N 条 + "+N more" (more 放列表尾部)
+    (let* ((rev (reverse out))
+           (shown (cl-subseq rev 0 (min my-dash-todo-count (length rev))))
+           (result (mapcar (lambda (x) (concat "• " x)) shown)))
+      (when (> total my-dash-todo-count)
+        (setq result (append result
+                             (list (format "+ %d more" (- total my-dash-todo-count))))))
+      result)))
 
 (defun my-dash-recents-lines ()
   "返回最近文件 basename 列表 (过滤不存在/临时文件), 最多 my-dash-recents-count 条."
@@ -118,19 +137,18 @@
     (dolist (f recentf-list)
       (when (and (< (length out) my-dash-recents-count)
                  (file-exists-p f)
-                 (not (string-match "/tmp/" f))        ; 临时目录
+                 (not (string-match "/tmp/" f))
                  (not (string-match "/\\.cache/" f))
-                 (not (string-match "appt\\.txt" f)))  ; 临时文件
+                 (not (string-match "appt\\.txt" f)))
         (push (file-name-nondirectory (directory-file-name f)) out)))
     (reverse out)))
 
 (defun my-dash-projects-lines ()
-  "返回项目 basename 列表 (折叠空格后去重), 最多 my-dash-projects-count 个."
+  "返回项目 basename 列表 (折叠空格去重), 最多 my-dash-projects-count 个."
   (when (fboundp 'projectile-known-projects)
     (let ((out '()) seen)
       (dolist (p (ignore-errors (projectile-known-projects)))
         (let* ((name (file-name-nondirectory (directory-file-name p)))
-               ;; 折叠连续空格 (如 "Lisp  tutorial" → "Lisp tutorial"), 再按折叠名去重
                (key (replace-regexp-in-string "[[:space:]]+" " " name)))
           (when (and (< (length out) my-dash-projects-count)
                      (not (member key seen)))
@@ -141,7 +159,8 @@
 ;; ---------- 渲染 ----------
 
 (defun my-dash-block (title lines)
-  "渲染一个内容块为多行字符串列表 (顶边框 → 标题 → 内容 → 底边框)."
+  "渲染一个内容块为固定尺寸的行列表.
+总高 = my-dash-block-rows 内容行 + 2 边框. 内容不足补空行, 超出截断."
   (let* ((w my-dash-col-width)
          (fill (lambda (s)
                  (let ((ts (truncate-string-to-width (or s "") (- w 4) nil nil t)))
@@ -151,7 +170,8 @@
          (border (concat "┌" (make-string (- w 2) ?─) "┐"))
          (bottom (concat "└" (make-string (- w 2) ?─) "┘")))
     (append (list border (funcall fill title))
-            (mapcar fill lines)
+            (mapcar fill (append (cl-subseq lines 0 (min my-dash-block-rows (length lines)))
+                                 (make-list (max 0 (- my-dash-block-rows (min my-dash-block-rows (length lines)))) "")))
             (list bottom))))
 
 (defun my-dash-pad (s width)
@@ -159,7 +179,7 @@
   (concat s (make-string (max 0 (- width (string-width s))) ?\s)))
 
 (defun my-dash-two-col (left-lines right-lines)
-  "把左右两栏行列表按列宽对齐拼接成单行列表. 两栏各自等高 (补空行对齐底边)."
+  "把左右两栏行列表按列宽对齐拼接成单行列表."
   (let* ((n (max (length left-lines) (length right-lines)))
          (l-pad (append left-lines (make-list (- n (length left-lines)) "")))
          (r-pad (append right-lines (make-list (- n (length right-lines)) "")))
@@ -177,15 +197,18 @@
          (recents (my-dash-recents-lines))
          (projects (my-dash-projects-lines)))
     (erase-buffer)
-    ;; EMACS 标题 (ASCII banner)
+    ;; 垂直偏移 (顶部空行)
+    (dotimes (_ my-dash-v-offset) (insert "\n"))
+    ;; EMACS 标题
     (insert (propertize "EMACS" 'face '(:height 2.5 :weight bold :foreground "#61afef")))
     (insert "\n\n")
     ;; 顶部按钮行
     (my-dash-insert-top-buttons)
     (insert "\n\n")
-    ;; 第一行 = Today's Agenda | TODO
+    ;; 第一行 = Today's Agenda | TODO (含 Open Agenda / Show all 按钮行)
     (let ((row1 (my-dash-two-col
-                 (my-dash-block "Today's Agenda" agenda)
+                 (my-dash-block "Today's Agenda"
+                                (append agenda '("→ Open Agenda")))
                  (my-dash-block "TODO" todo))))
       (dolist (l row1) (insert l "\n")))
     (insert "\n")
@@ -194,10 +217,7 @@
                  (my-dash-block "Recent Files" recents)
                  (my-dash-block "Projects" projects))))
       (dolist (l row2) (insert l "\n")))
-    (insert "\n")
-    ;; Quick Actions 行 (填充利用率, 不堆键位)
-    (my-dash-insert-quick-actions)
-    (insert "\n")
+    (insert "\n\n")
     (insert (propertize (format "Happy hacking! · Emacs %s" emacs-version)
                         'face '(:foreground "#aaaaaa" :slant italic)))
     (insert "\n")))
@@ -223,32 +243,24 @@
       (insert "   "))
     (insert "\n")))
 
-(defun my-dash-insert-quick-actions ()
-  "插入 Quick Actions 行 (常用操作, 不堆键位)."
-  (let ((actions '(("Agenda" (org-agenda nil "n") "今日日程 + 待办")
-                   ("Capture" (org-capture) "快速捕获")
-                   ("Inbox" (find-file "~/org/inbox.org") "打开收件箱")
-                   ("Projects" (find-file "~/org/projects.org") "打开项目树")
-                   ("Mail" (gnus) "收邮件")
-                   ("Recent" (consult-recent-file) "最近文件"))))
-    (let ((start (point)))
-      (insert (propertize "Quick Actions  " 'face '(:foreground "#98c379" :weight bold))))
-    (dolist (a actions)
-      (my-dash-insert-button (nth 0 a) (nth 1 a) (nth 2 a) '(:foreground "#56b6c2"))
-      (insert "  "))
-    (insert "\n")))
+;; ---------- 居中 ----------
 
-;; ---------- 入口 & 居中 ----------
-
-(defun my-dash--recenter (w)
-  "把渲染好的 Dashboard buffer 水平居中 (W 是窗口宽度)."
+(defun my-dash--center-h (w)
+  "把整个 Dashboard 内容按窗口宽度 W 水平居中 (整体左缩进, 非逐行)."
   (save-excursion
     (goto-char (point-min))
-    (cl-loop while (not (eobp))
-             do (let ((line-len (length (buffer-substring-no-properties (point) (line-end-position)))))
-                  (when (> w line-len)
-                    (insert (make-string (max 0 (/ (- w line-len) 2)) ?\s)))
-                  (forward-line 1)))))
+    ;; 找最宽行 (内容宽度 = 两栏宽 + 间隔)
+    (let ((maxw 0))
+      (cl-loop while (not (eobp))
+               do (let ((len (length (buffer-substring-no-properties (point) (line-end-position)))))
+                    (setq maxw (max maxw len)))
+               (forward-line 1))
+      (when (< maxw w)
+        (let ((pad (make-string (max 0 (/ (- w maxw) 2)) ?\s)))
+          (goto-char (point-min))
+          (cl-loop while (not (eobp))
+                   do (insert pad)
+                   (forward-line 1)))))))
 
 (defun my-dashboard ()
   "打开/刷新 Dashboard."
@@ -257,14 +269,18 @@
     (with-current-buffer buf
       (setq buffer-read-only nil)
       (my-dash-render)
-      ;; 水平居中
-      (let ((win (get-buffer-window buf t)))
-        (my-dash--recenter (if win (window-width win) (frame-width))))
+      ;; 按 frame 宽度整体居中
+      (my-dash--center-h (frame-width))
       (special-mode)
       ;; 首页隐藏视觉元素 (buffer-local, 不破坏正常操作)
       (display-line-numbers-mode -1)
       (setq-local cursor-type nil)
       (setq-local mode-line-format nil)
+      ;; 忽略触控板横向三击事件 (避免 "undefined" 报错)
+      (local-set-key (kbd "<triple-wheel-left>") #'ignore)
+      (local-set-key (kbd "<triple-wheel-right>") #'ignore)
+      (local-set-key (kbd "<double-wheel-left>") #'ignore)
+      (local-set-key (kbd "<double-wheel-right>") #'ignore)
       (setq buffer-read-only t)
       (setq-local revert-buffer-function
                   (lambda (&rest _) (my-dashboard))))
