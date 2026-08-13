@@ -375,13 +375,20 @@
 ;; ================= Gnus: 按邮箱账号分组 (Topic 模式) =================
 ;; 邮件组列表按账号分开展示, 一眼看出哪个组属于哪个邮箱。
 ;; 注意:
-;;   1. 第一个 topic ("其他") 是所有未列出的新组的默认归属。
+;;   1. 根 topic ("Gnus") 是所有未列出的新组的默认归属 (gnus-topic-check-topology
+;;      会把未归类组追加到根 topic 的 alist 条目)。
 ;;   2. Gnus 退出时会把 topic 结构存进 .newsrc.eld, 下次启动用保存值
 ;;      覆盖 init.el 的设置 —— 所以必须在进入组列表时强制重置 (下方 hook)。
-;;   3. 2026-08 调整: Gmail 组直接放根 topic (名字 = Gmail 地址),
+;;   3. 2026-08 初: Gmail 组直接放根 topic (名字 = Gmail 地址),
 ;;      126 作为根的子 topic (紧随其后)。
+;;   4. 2026-08 再调整: 两个邮箱互不从属 —— 根 topic 改回 "Gnus",
+;;      Gmail 与 126 作为其同级子 topic (与 8 月前的结构一致)。
+;;      (gnus-topic 的 topic 结构是单根树: 第一个元素是根, 其余元素都是
+;;       它的子孙 (gnus-topic-prepare-topic), 想让两个邮箱互不从属,
+;;       只能让它们共用同一个父 topic。)
 (defvar my-gnus-topic-alist
-  `(("luongchinc@gmail.com"
+  `(("Gnus")
+    ("luongchinc@gmail.com"
      "INBOX" "Notes" "已发邮件" "所有邮件" "已加星标" "垃圾邮件" "已删除邮件")
     (,(concat "126 · " my-mail126-address)
      "nnimap+126:INBOX" "nnimap+126:草稿箱" "nnimap+126:已发送"
@@ -392,16 +399,17 @@
     ("草稿"
      "nndraft:drafts")))
 
-;; Gnus topic 树结构: 根 = Gmail 地址 (Gmail 组直接挂根下),
-;; 126 紧随其后作为根的子 topic。⚠️ 必须同时设 topology 和 alist:
+;; Gnus topic 树结构: 根 "Gnus", Gmail 与 126 同级子 topic,
+;; 互不从属。⚠️ 必须同时设 topology 和 alist:
 ;; .newsrc.eld 的 setq 在 gnus-topic 加载前执行, 变量被 Gnus 启动重置为
 ;; nil → 渲染报 char-or-string-p nil (2026-08 实测)。
 (defvar my-gnus-topic-topology
-  '(("luongchinc@gmail.com" visible)
-    (("126 · dok4ever123@126.com" visible nil nil))
+  '(("Gnus" visible)
+    (("luongchinc@gmail.com" visible))
+    (("126 · dok4ever123@126.com" visible))
     (("其他" visible))
     (("草稿" visible)))
-  "Gnus topic 树结构 (根 = Gmail, 126 是根的子 topic).")
+  "Gnus topic 树结构 (根 \"Gnus\", Gmail 与 126 互不从属).")
 
 ;; Gmail 本地文件夹自动订阅 (nnmaildir 只认顶层目录, 嵌套的 [Gmail]/*
 ;; 已建顶层符号链接 ~/Mail/gmail/<名字>, 组名即链接名)
@@ -412,17 +420,31 @@
               (unless (gnus-group-entry g)
                 (ignore-errors (gnus-subscribe-group g))))))
 
-;; 进入组列表时: 必须先设好 alist 再开 topic 模式 ——
-;; gnus-topic-mode 启用时会立即按当前 alist 重绘列表,
-;; 顺序反了就会用默认结构 (Gnus/misc)。
+;; 进入组列表时: 必须先设好 alist + topology 再开 topic 模式 ——
+;; gnus-topic-mode 启用时会立即按当前结构重绘列表,
+;; 顺序反了就会用默认结构 (Gnus/misc) 或 .newsrc.eld 里的旧拓扑。
 (add-hook 'gnus-group-mode-hook
           (lambda ()
             (setq gnus-topic-alist my-gnus-topic-alist)
+            (setq gnus-topic-topology my-gnus-topic-topology)
             (gnus-topic-mode 1)))
 ;; 启动完成后也兜底一次 (防止 Gnus 内部流程再次载入旧结构)
 (add-hook 'gnus-after-startup-hook
           (lambda ()
-            (setq gnus-topic-alist my-gnus-topic-alist)))
+            (setq gnus-topic-alist my-gnus-topic-alist)
+            (setq gnus-topic-topology my-gnus-topic-topology)))
+;; 终极兜底: 每次渲染组列表前强制套用新结构。覆盖的场景:
+;; 配置热重载 + gnus 存活 (再进 *Group* 不会重触发 group-mode-hook,
+;; gnus-start.el gnus-1: gnus-alive-p 时只 switch-to-buffer, 不重进 mode)。
+;; gnus-group-prepare-topics 定义在 gnus-topic.el, 用 with-eval-after-load
+;; 保证该文件已加载 (函数已定义) 才挂 advice。
+;; ⚠️ 副作用: 手动在组列表里改的 topic 归属会在下次渲染被重置为配置值
+;; (与本配置"进入组列表强制重置"的设计一致)。
+(with-eval-after-load 'gnus-topic
+  (advice-add 'gnus-group-prepare-topics :before
+              (lambda (&rest _)
+                (setq gnus-topic-alist my-gnus-topic-alist)
+                (setq gnus-topic-topology my-gnus-topic-topology))))
 
 ;; ================= Gnus: summary 列表窗口固定 10 行 (一屏 10 条) =================
 ;; 默认 summary 占帧高 25% (一屏几十条), 改为固定 10 行高。
