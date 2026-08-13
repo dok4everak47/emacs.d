@@ -31,10 +31,10 @@
   ;; 可视化错误提示 (闪屏替代蜂鸣声)
   (doom-themes-visual-bell-config))
 
-;; ---------- 字体 (macOS 自带 SF Mono) ----------
-(set-face-attribute 'default nil :family "Comic Sans MS" :height 180)
+;; ---------- 字体 (Liga Hack: Hack + 编程连字) ----------
+(set-face-attribute 'default nil :family "Liga Hack" :height 180)
 
-;; 中文字体: 西文字体 (Comic Sans MS) 没有中文字形, Emacs 会自动 fallback
+;; 中文字体: 西文字体 (Liga Hack) 没有中文字形, Emacs 会自动 fallback
 ;; 到系统默认中文字体, 导致中英文风格不统一。
 ;; 指定 fontset: 汉字/日文假名/谚文等 CJK 字符用苹方 (PingFang SC, macOS 内置)。
 ;; 想换其他中文字体, 改 "PingFang SC" 即可 (如 "Songti SC" 宋体 / "Heiti SC" 黑体)。
