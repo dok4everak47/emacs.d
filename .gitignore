@@ -41,3 +41,7 @@ projects
 # org-roam 数据库 (派生数据, 可从 ~/org-roam/*.org 重建)
 org-roam.db
 org-roam.db-*
+
+# 编辑器工具状态目录 (本地工具生成, 不进版本库)
+.cortexkit/
+.supervisor/

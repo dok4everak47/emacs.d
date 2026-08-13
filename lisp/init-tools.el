@@ -174,6 +174,30 @@
   ;; 外部新建/删除文件后, 重进 dired 自动刷新列表, 不用手动 g
   (setq dired-auto-revert-buffer #'dired-directory-changed-p))
 
+;; ---------- dired 查找/过滤 + 默认布局 (VSCode 风格) ----------
+;; 1. 在 dired 里找文件 (全部内置, 零依赖):
+;;    - C-s / C-r: 普通增量搜索整个列表
+;;    - C-M-s / C-M-r: 只在"文件名"里搜索 (dired-isearch-filenames), 最常用
+;;    - 回车确定后 C-x C-f 或 RET 打开
+;; 2. 默认隐藏详情列 (权限/大小/日期): 列表只剩文件名, 干净如 VSCode 文件区。
+;;    '(' 切换显示详情 (dired-hide-details-mode 内置 minor mode, 无包依赖)
+(add-hook 'dired-mode-hook #'dired-hide-details-mode)
+
+;; 3. 系统默认应用打开: 视频/PDF/图片/Office 文档不想进 Emacs 编辑的,
+;;    C-c o 用系统默认 App 打开 (macOS → open, Linux → xdg-open)。
+;;    自写函数避免引入 dired-open 包 + 依赖 xdg-open 可执行文件细节。
+(defun my-dired-open-default-app ()
+  "用系统默认应用打开当前行 (或被标记) 的文件.
+macOS 用 `open', 其他平台用 `xdg-open'."
+  (interactive)
+  (let ((cmd (if (eq system-type 'darwin) "open" "xdg-open"))
+        (files (dired-get-marked-files)))
+    (if (null files)
+        (user-error "没有可打开的文件")
+      (dolist (f files)
+        (start-process "default-app" nil cmd f)))))
+(define-key dired-mode-map (kbd "C-c o") #'my-dired-open-default-app)
+
 ;; ---------- 窗口管理: 方向键切换 window ----------
 ;; windmove: Shift+方向键 切到对应方向的 window (rame 内多窗口时最直观)
 ;; C-x o 需要循环, 方向键一次到位

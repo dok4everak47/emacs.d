@@ -59,6 +59,37 @@
   ;; 项目相关候选 (consult-projectile-find-file/switch-project/recentf)。
   ;; dired-sidebar 走 projectile 检测根目录 — 三者联动。
 
+;; ---------- consult-dir: 目录选择 (C-x D 选目录后进 dired) ----------
+;; C-x d 是原生 dired; C-x D 弹 consult-dir 候选 (项目根/项目/recentf/bookmark
+;; + 输入历史) 选目录后打开 dired。解决 "v翻历史目录" 需求 — 原生
+;; read-file-name 的 file-name-history 因 vertico remap M-n 为翻候选而看不到;
+;; consult-dir 把历史/项目目录当候选列出。
+;; 窄化 (narrow) 快速过滤单个源: 输 `p` 只看 Projects、`h` 只看输入历史、
+;; `r` 只看 Recentf dirs、`.` 只看当前/项目根 — 不用一直往下拉。
+(use-package consult-dir
+  :ensure t
+  :config
+  ;; 增加 "输入历史" 候选源: 列出 file-name-history 里的路径 (C-x d 输过的).
+  ;; consult--multi 源 = 符号, 值 = plist(:enabled/:items 为函数)。
+  ;; 追加到 sources 末尾 (add-to-list ... t), 避免把 Projects/recentf 源挤下去.
+  (defvar consult-dir--source-file-name-history
+    `( :name "Input history"
+       :narrow ?h
+       :category file
+       :face consult-file
+       :history file-name-history
+       :items ,#'(lambda ()
+                   (seq-take
+                    (delete-dups
+                     (cl-remove-if-not
+                      (lambda (f)
+                        (or (string-suffix-p "/" f)
+                            (file-directory-p (expand-file-name f))))
+                      file-name-history))
+                    10))))
+  (add-to-list 'consult-dir-sources
+               'consult-dir--source-file-name-history t))
+
 ;; ---------- consult-projectile: 项目命令 (consult + projectile) ----------
 ;; 替代内置 project.el 的 C-x p 前缀; projectile 全局检测项目 + 缓存。
 ;; C-c p 是 projectile 默认前缀, 这里把候选升级为 consult 风格
@@ -197,7 +228,11 @@ let 动态绑定, :around advice 读取。")
 (use-package savehist
   :ensure nil
   :init
-  (savehist-mode 1))
+  (savehist-mode 1)
+  :config
+  ;; C-x d (dired) 的目录历史默认写在 file-name-history, 不在
+  ;; savehist 默认保存列表 → 重启丢失。显式加入跨会话记录。
+  (add-to-list 'savehist-additional-variables 'file-name-history))
 
 (provide 'init-completion)
 ;;; init-completion.el ends here

@@ -9,6 +9,7 @@
 (declare-function dired-sidebar-toggle-sidebar "dired-sidebar")
 (declare-function dired-sidebar-jump-to-sidebar "dired-sidebar")
 (declare-function mood-line-mode "mood-line")
+(declare-function dashboard-setup-startup-hook "dashboard")
 (declare-function doom-themes-visual-bell-config "doom-themes")
 
 ;; ---------- 包管理: 内置 package.el + 清华镜像 ----------
@@ -104,22 +105,18 @@
   (dired-sidebar-pop-to-sidebar-on-toggle-open nil) ; toggle 打开时不抢焦点
   (dired-sidebar-project-root-fn #'my-dired-sidebar-project-root)) ; 走 projectile (见下方)
 
-;; ---------- dired 增强 (C-x d, VSCode 风格默认进项目根) ----------
-;; Emacs 内置 C-x d 的 prompt 默认填 default-directory — 在非项目 buffer
-;; (scratch/dashboard) 里默认指向 ~ 等非项目目录, 回车进 dired 后
-;; projectile 不认, C-c p f 找不到文件。File 菜单 Open Directory 之所以
-;; "能用", 是因点击菜单的当前 buffer 多在项目内 (default-directory 已是根)。
-;; 修法: C-x d 包装 — 默认目录优先填 projectile-project-root, 无项目时退回
-;; 原生行为 (default-directory), 保证菜单和 C-x d 行为一致。
-(defun my-dired ()
-  "智能 dired: prompt 默认填 projectile 项目根 (无项目时退回默认目录)."
+;; ---------- dired 增强 (C-x d 原生 + C-x D 选目录) ----------
+;; 双命令分工, 各司其职:
+;; - C-x d: 原生 dired, 直接敲路径/补全进目录 — 符合肌肉记忆, 快速浏览。
+;; - C-x D: consult-dir 弹候选选目录 (历史/项目/recentf/bookmark) 后进 dired —
+;;   需要跳历史路径或项目根时用. 窄化: p=项目 r=recentf h=输入历史 .=当前.
+(defun my-dired-choose ()
+  "选择目录后打开 dired (候选含项目根/项目/历史/最近目录)."
   (interactive)
-  (let ((default-directory
-          (or (when (fboundp 'projectile-project-root)
-                (projectile-project-root))
-              default-directory)))
-    (call-interactively #'dired)))
-(global-set-key (kbd "C-x d") #'my-dired)
+  (require 'consult-dir)
+  (let ((consult-dir-default-command #'dired))
+    (call-interactively #'consult-dir)))
+(global-set-key (kbd "C-x D") #'my-dired-choose)
 
 ;; ---------- 文件图标 (nerd-icons-dired, dired-sidebar 依赖) ----------
 (use-package nerd-icons-dired
@@ -200,13 +197,98 @@
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
-;; ---------- Dashboard 主页 (自写双栏 home screen, 2026-08) ----------
-;; 替代 emacs-dashboard 包: 双栏四块 (Today's Agenda | TODO / Recent | Projects)。
-;; 实现移到 lisp/init-dashboard.el (init.el 加载链 require)。
+;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
 ;; C-c h 随时回到 Dashboard (home)
-(global-set-key (kbd "C-c h") #'my-dashboard)
+(global-set-key (kbd "C-c h") #'dashboard-open)
+(use-package nerd-icons
+  :ensure t
+  :when (display-graphic-p)
+  :demand t)
 
-;; 最近文件记录 (recents 依赖)
+(use-package dashboard
+  :ensure t
+  :init
+  ;; Navigator 按钮分两行: 第一行 = 邮件 + IDE, 第二行 = 人生管理 (org)
+  ;; (fboundp 守卫: nerd-icons 未加载时回退到文字图标)
+  (setq dashboard-navigator-buttons
+        `(((,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-mail") "✉")
+            "收邮件" "Gnus 收邮件"
+            (lambda (&rest _) (gnus)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-pencil") "✍")
+            "Gmail" "撰写 Gmail"
+            (lambda (&rest _) (my-compose-gmail)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-paper_airplane") "✈")
+            "126" "撰写 126 邮件"
+            (lambda (&rest _) (my-compose-mail126)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-file_directory") "📂")
+            "文件树" "打开 dired-sidebar 侧边栏"
+            (lambda (&rest _) (dired-sidebar-toggle-sidebar)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-sign_out") "🚪")
+            "退出" "退出 Emacs"
+            (lambda (&rest _) (save-buffers-kill-terminal))))
+          ;; 第二行: 人生管理 (org)
+          ((,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-calendar") "📅")
+            "日程" "人生管理主视图: 本周日程 + 待办"
+            (lambda (&rest _) (org-agenda nil "n")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-plus") "✚")
+            "捕获" "快速捕获任务/笔记 (C-c c)"
+            (lambda (&rest _) (org-capture)))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-inbox") "📥")
+            "收件箱" "打开收集箱 inbox.org"
+            (lambda (&rest _) (find-file "~/org/inbox.org")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-repo") "🗂")
+            "项目" "打开项目树 projects.org"
+            (lambda (&rest _) (find-file "~/org/projects.org")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-book") "📔")
+            "日记" "打开日记 journal.org"
+            (lambda (&rest _) (find-file "~/org/journal.org"))))))
+  (dashboard-setup-startup-hook)
+  :custom
+  (dashboard-startup-banner 'logo)
+  (dashboard-set-heading-icons t)
+  (dashboard-set-file-icons t)
+  (dashboard-center-content t)
+  (dashboard-vertically-center-content t)
+  (dashboard-banner-logo-title "Welcome to Emacs")
+  ;; 最近文件/项目数量 (recents 太多会刷屏)
+  (dashboard-items '((recents . 6)
+                     (projects . 5)))
+  (dashboard-projects-backend 'projectile)
+  ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
+  (dashboard-path-style 'truncate-beginning)
+  (dashboard-path-max-length 40)
+  ;; footer 固定文案 (默认是随机英文梗语录), 带 Emacs 版本号
+  (dashboard-footer-messages
+   (list (format "Happy hacking! · Emacs %s" emacs-version)))
+  (dashboard-startupify-list
+   '(dashboard-insert-banner
+     dashboard-insert-newline
+     dashboard-insert-banner-title
+     dashboard-insert-newline
+     dashboard-insert-navigator
+     dashboard-insert-newline
+     dashboard-insert-init-info
+     dashboard-insert-newline
+     dashboard-insert-items
+     dashboard-insert-newline
+     dashboard-insert-footer))
+  :custom-face
+  ;; 标题放大加粗 (默认 inherit default)
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold))))
+  ;; footer 亮灰斜体 (默认继承 widget-button, 颜色偏暗)
+  (dashboard-footer-face ((t (:foreground "#aaaaaa" :slant italic)))))
+
+;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
 
 ;; tab-bar-tab-name-format: 用默认 (tab-bar-buffers 自带文件名显示)

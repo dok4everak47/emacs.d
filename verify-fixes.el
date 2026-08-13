@@ -43,6 +43,13 @@
       (push (format "[%s] C-x M-o → dired-omit-mode (实际 %s)" (if (eq omo 'dired-omit-mode) "OK" "FAIL") omo) out)
       (push (format "[%s] auto-revert = dired-directory-changed-p (实际 %S)" (if (eq ar 'dired-directory-changed-p) "OK" "FAIL") ar) out)))
 
+  ;; 4a. dired 增强: C-c o → 系统默认应用打开, 默认 hide-details
+  (with-current-buffer (dired-noselect "/tmp/")
+    (let ((cco (lookup-key dired-mode-map (kbd "C-c o")))
+          (hdd (and (boundp 'dired-hide-details-mode) dired-hide-details-mode)))
+      (push (format "[%s] dired C-c o → my-dired-open-default-app (实际 %s)" (if (eq cco 'my-dired-open-default-app) "OK" "FAIL") cco) out)
+      (push (format "[%s] dired 默认隐藏详情 (实际 %S)" (if hdd "OK" "FAIL") hdd) out)))
+
   ;; 4. flymake/consult 嵌套守卫: C-c ! f 应绑定 consult-flymake
   (progn
     (require 'consult nil t)
