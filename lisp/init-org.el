@@ -490,6 +490,9 @@
 (use-package org-gcal
   :ensure t
   :after org
+  :defer t
+  :commands (org-gcal-sync org-gcal-fetch org-gcal-post-at-point
+             org-gcal-delete-at-point org-gcal-sync-tokens-clear)
   :init
   ;; token 用 plstore 加密存储, 需要本地 GPG 密钥
   ;; 首次配置: gpg --batch --gen-key 生成无口令密钥, 邮箱固定 emacs-plstore@localhost

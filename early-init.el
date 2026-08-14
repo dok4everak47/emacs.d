@@ -24,3 +24,8 @@
   (setq native-comp-deferred-compilation nil))
 (when (boundp 'native-comp-jit-compilation)
   (setq native-comp-jit-compilation nil))
+
+;; GC 调优 (2026-08-14): 默认 gc-cons-threshold 0.8MB, 加载大量包后触发
+;; 过于频繁, GC 停顿是 org 文件打开 / 后台 agenda 计算卡顿的主因之一
+;; (实测 gc-cons-percentage 0.6 后同操作耗时减半)。
+(setq gc-cons-percentage 0.6)

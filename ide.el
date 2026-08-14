@@ -406,26 +406,6 @@ card always reflects the latest activity."
     (mapcar (lambda (p) (cons (projectile-project-name p) p))
             (seq-take (projectile-relevant-known-projects) 5))))
 
-(defun my-dash--agenda-data ()
-  "Today's agenda as list of (DISPLAY . nil)."
-  (let ((org-agenda-window-setup 'current-window)
-        (org-agenda-sticky nil))
-    (save-window-excursion
-      (with-temp-buffer
-        (org-agenda nil "a")
-        (let ((lines '()))
-          (goto-char (point-min))
-          (while (not (eobp))
-            (let ((trimmed (string-trim
-                            (buffer-substring-no-properties
-                             (line-beginning-position) (line-end-position)))))
-              (when (and (> (length trimmed) 0)
-                         (or (string-match-p "[0-9]\\{2\\}:[0-9]\\{2\\}" trimmed)
-                             (string-match-p "\\(?:TODO\\|DONE\\|Sched\\(?:\\|ed\\)\\.?\\)" trimmed)))
-                (push (cons trimmed nil) lines)))
-            (forward-line 1))
-          (seq-take (nreverse lines) 5))))))
-
 (defun my-dash--bookmarks-data ()
   "Bookmarks as list of (NAME . LOCATION)."
   (require 'bookmark)
@@ -436,13 +416,107 @@ card always reflects the latest activity."
                 (cons name (or (bookmark-location bm) ""))))
             (seq-take bookmark-alist 5))))
 
+;; ---------- Agenda 卡片异步加载 (2026-08-14) ----------
+;; 启动阻塞根因: dashboard-insert-startupify-lists 挂在 after-init-hook,
+;; 而 Agenda 卡片的 my-dash--agenda-data 会同步执行 (org-agenda nil "a"),
+;; 逐个 find-file-noselect 打开全部 agenda 文件 (实测每个 ~1.9s, 6 个文件
+;; 共 ~11.7s), 导致 Dashboard 十几秒后才出现。
+;; (表象是 "Loading gcal-client.el...done" 之后卡住 — gcal-client.el 只是
+;; 两个 setq, 毫秒级, 无辜; 卡的是它之后 after-init-hook 里的 agenda 计算。)
+;; 修复: agenda 计算移到子进程 (emacs --quick + agenda-dump.el, ~1s),
+;; 主 Emacs 全程可交互; 卡片先显示 "Loading calendar…" 占位, 子进程
+;; 完成后 sentinel 重渲染填入。计算逻辑在 agenda-dump.el, agenda 文件
+;; 列表由这里实时传入 (改 org-agenda-files 自动生效, 不复制配置)。
+(defvar my-dash--agenda-rows nil
+  "Agenda rows for the dashboard card, computed asynchronously once per session.")
+
+(defvar my-dash--agenda-loading nil
+  "Non-nil while the async agenda computation is pending/running.")
+
+(defvar my-dash--agenda-watchdog nil
+  "Watchdog timer: clears `my-dash--agenda-loading' if the subprocess hangs.")
+
+(defun my-dash--agenda-load-async ()
+  "Compute agenda data in a background --quick Emacs subprocess (~1s).
+org-agenda 在 GUI 里逐个打开 agenda 文件很慢 (实测 ~2s/文件) — 同步计算
+会冻结主界面。派生子进程用 --quick 加载 agenda-dump.el (只 require
+org + org-agenda, 不加载用户 init), agenda 文件列表由这里传入。
+子进程完成后 sentinel 更新卡片并重渲染。"
+  (unless (or my-dash--agenda-rows my-dash--agenda-loading)
+    (setq my-dash--agenda-loading t)
+    (let ((emacs (executable-find "emacs"))
+          (script (expand-file-name "agenda-dump.el" user-emacs-directory))
+          (out "/tmp/my-dash-agenda.out"))
+      (if (not emacs)
+          (progn (setq my-dash--agenda-loading nil)
+                 (my-dash--rerender))
+        (delete-file out t)
+        (let ((files (mapconcat (lambda (f) (format "%S" (expand-file-name f)))
+                                org-agenda-files " ")))
+          (make-process
+           :name "my-dash-agenda"
+           :buffer (generate-new-buffer " *my-dash-agenda*")
+           :command
+           (list emacs "--quick" "--batch"
+                 "-l" script
+                 "--eval"
+                 (format "(my-agenda-dump (quote (%s)) %S)" files out))
+           :sentinel #'my-dash--agenda-sentinel)))
+        ;; 看门狗: 子进程异常挂死 (如卡在某个提示) 时, 15s 后清除 loading,
+        ;; 卡片显示 "Agenda unavailable" 而不是永远 "Loading…";
+        ;; 子进程若稍后仍返回, sentinel 照常更新卡片。
+        (setq my-dash--agenda-watchdog
+              (run-at-time 15 nil
+                           (lambda ()
+                             (when my-dash--agenda-loading
+                               (setq my-dash--agenda-loading nil)
+                               (my-dash--rerender))))))))
+
+(defun my-dash--agenda-sentinel (proc _event)
+  "Subprocess finished: read the result sexp, update cache and re-render."
+  (when (memq (process-status proc) '(exit signal))
+    (when my-dash--agenda-watchdog
+      (cancel-timer my-dash--agenda-watchdog)
+      (setq my-dash--agenda-watchdog nil))
+    (let ((ok (eq (process-exit-status proc) 0))
+          (out "/tmp/my-dash-agenda.out"))
+      (when (buffer-live-p (process-buffer proc))
+        (kill-buffer (process-buffer proc)))
+      (setq my-dash--agenda-loading nil)
+      (let ((data (and ok
+                       (file-exists-p out)
+                       (condition-case nil
+                           (with-temp-buffer
+                             (insert-file-contents out)
+                             (read (current-buffer)))
+                         (error nil)))))
+        (when (consp data)
+          (setq my-dash--agenda-rows data)))
+      ;; 重建 cache (agenda 槽换新数据) — 直接 rerender 会用启动时的
+      ;; 旧 cache (agenda 槽 nil), 卡片停留在占位/不可用状态 (2026-08-14)。
+      ;; refresh-cache 内部的 agenda-load-async 有 rows 非 nil 守卫, 不会重复派生。
+      (my-dash--refresh-cache)
+      ;; 无论成败都重渲染, 把 \"Loading…\" 换成数据或空状态文案
+      (my-dash--rerender))))
+
+(defun my-dash--rerender ()
+  "Re-render the dashboard buffer if it exists and is visible."
+  (when (and (boundp 'dashboard-buffer-name)
+             (get-buffer dashboard-buffer-name)
+             (get-buffer-window dashboard-buffer-name))
+    (with-current-buffer (get-buffer dashboard-buffer-name)
+      (dashboard-insert-startupify-lists t))))
+
 (defun my-dash--refresh-cache ()
-  "Fill `my-dash--cache' from data sources."
+  "Fill `my-dash--cache' from data sources.
+Agenda comes from `my-dash--agenda-rows' (loaded asynchronously once,
+see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (setq my-dash--cache
         (list (my-dash--recents-data)
               (my-dash--projects-data)
-              (my-dash--agenda-data)
-              (my-dash--bookmarks-data))))
+              my-dash--agenda-rows
+              (my-dash--bookmarks-data)))
+  (my-dash--agenda-load-async))
 
 (defun my-dash-insert-items ()
   "Render 2×2 card grid: recents/projects/agenda/bookmarks."
@@ -463,9 +537,16 @@ card always reflects the latest activity."
                    (seq-take projects my-dash-card-rows))))
     (my-dash--insert-card-pair
      (list "nf-fa-calendar" "Agenda"
-           (mapcar (lambda (a)
-                     (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") "#e5c07b"))
-                   (seq-take agenda my-dash-card-rows)))
+           (if agenda
+               (mapcar (lambda (a)
+                         (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") "#e5c07b"))
+                       (seq-take agenda my-dash-card-rows))
+             ;; agenda 异步加载中/失败: 先显示占位, 数据到了自动重渲染
+             (list (list "nf-md-calendar_clock"
+                         (if my-dash--agenda-loading
+                             "Loading calendar…"
+                           "Agenda unavailable")
+                         nil "#5b6268"))))
      (list "nf-fa-bookmark_o" "Bookmarks"
            (mapcar (lambda (b)
                      (list "nf-md-bookmark" (car b)

@@ -17,8 +17,8 @@
 
 ;;; Code:
 
-(require 'tramp)
-(require 'dired)
+;; TRAMP 按需加载: 访问 /ssh: 路径或调用 TRAMP 函数时自动加载,
+;; 启动不 require (tramp 0.15s)。dired 同理 (C-x d 时自动加载)。
 
 ;; ---------- 服务器清单 (私有文件, 不存在则空) ----------
 (defvar my-servers nil
