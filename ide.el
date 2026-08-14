@@ -200,10 +200,10 @@
     ["关闭 LSP" eglot-shutdown t]))
 
 ;; ---------- Dashboard 四模块卡片化 (svg-lib + :align-to 动态居中) ----------
-(defconst my-dash-card-width 28 "Max content width in chars per card row.")
+(defconst my-dash-card-width 28 "Uniform content width in chars per card row.")
 (defconst my-dash-card-rows 5 "Max content rows per card.")
-(defconst my-dash-card-gap 2 "Horizontal gap between two cards, in cols.")
-(defconst my-dash-tag-padding 2 "svg-lib-tag :padding, for width estimation.")
+(defconst my-dash-card-gap 4 "Horizontal gap between two cards, in cols.")
+(defconst my-dash-tag-padding 3 "svg-lib-tag :padding, for width estimation.")
 
 (defvar my-dash--cache nil
   "Cached dashboard data: (recents projects agenda bookmarks).")
@@ -243,13 +243,18 @@
   "Insert a space positioned by display :align-to SPEC (no space padding)."
   (insert (propertize " " 'display `(space :align-to ,spec))))
 
-(defun my-dash--line-width (icon display)
-  "Estimated display width (cols) of one card line: ICON + DISPLAY.
-Matches svg-lib-tag rendered width = (string-width + :padding) cols."
-  (+ (string-width (my-dash--trunc (format "%s %s"
-                                           (my-dash--icon icon) display)
-                                   my-dash-card-width))
-     my-dash-tag-padding))
+(defun my-dash--pad-right (str width)
+  "Pad STR with spaces on the right to display WIDTH.
+Spaces live inside the svg-lib image, not as buffer layout."
+  (let ((sw (string-width str)))
+    (if (>= sw width)
+        str
+      (concat str (make-string (- width sw) ?\s)))))
+
+(defun my-dash--line-width (&rest _)
+  "Uniform card line width (cols) = `my-dash-card-width' + :padding.
+All card rows are padded to the same width, so cards are equal-sized."
+  (+ my-dash-card-width my-dash-tag-padding))
 
 (defun my-dash--card-width (icon label rows)
   "Actual width (cols) of a card = max(title, content rows)."
@@ -261,9 +266,12 @@ Matches svg-lib-tag rendered width = (string-width + :padding) cols."
 
 (defun my-dash--insert-tag (icon display action color &optional height)
   "Insert rounded svg-lib tag (fixed-width card row), clickable via ACTION.
-GUI: svg-lib-tag SVG image with keymap; batch: text with text-properties."
-  (let* ((text (my-dash--trunc (format "%s %s" (my-dash--icon icon) display)
-                               my-dash-card-width))
+GUI: svg-lib-tag SVG image with keymap; batch: text with text-properties.
+Content is right-padded to `my-dash-card-width' so all cards equal size."
+  (let* ((text (my-dash--pad-right
+                (my-dash--trunc (format "%s %s" (my-dash--icon icon) display)
+                                my-dash-card-width)
+                my-dash-card-width))
          (style `(:foreground ,color :background "#21252b" :stroke 1
                    :radius 6 :padding ,my-dash-tag-padding :margin 0
                    :height ,(or height 1.2))))
@@ -319,7 +327,7 @@ Layout algorithm (dynamic, window-width independent):
             (when r2
               (my-dash--insert-tag (nth 0 r2) (nth 1 r2) (nth 2 r2) (nth 3 r2)))
             (insert "\n")))
-        (insert "\n")))))
+        (insert "\n\n")))))
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
 (defun my-dash--recents-data ()
