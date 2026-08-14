@@ -429,6 +429,7 @@ card always reflects the latest activity."
 (defun my-dash--bookmarks-data ()
   "Bookmarks as list of (NAME . LOCATION)."
   (require 'bookmark)
+  (bookmark-maybe-load-default-file)
   (when (and (boundp 'bookmark-alist) bookmark-alist)
     (mapcar (lambda (bm)
               (let ((name (bookmark-name-from-full-record bm)))
