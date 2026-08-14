@@ -6,6 +6,8 @@
 
 ;; 编译期声明 (包/内置模块加载后变量才有定义)
 (defvar display-line-numbers-type nil)
+(defvar org-agenda-window-setup)   ; org 包的 defcustom, 声明为 special 供 let 动态绑定
+(defvar org-agenda-sticky)
 (declare-function dired-sidebar-toggle-sidebar "dired-sidebar")
 (declare-function dired-sidebar-jump-to-sidebar "dired-sidebar")
 (declare-function mood-line-mode "mood-line")
@@ -197,6 +199,207 @@
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
+;; ---------- Dashboard 四模块卡片化 (svg-lib + :align-to 动态居中) ----------
+(defconst my-dash-card-width 28 "Max content width in chars per card row.")
+(defconst my-dash-card-rows 5 "Max content rows per card.")
+(defconst my-dash-card-gap 2 "Horizontal gap between two cards, in cols.")
+(defconst my-dash-tag-padding 2 "svg-lib-tag :padding, for width estimation.")
+
+(defvar my-dash--cache nil
+  "Cached dashboard data: (recents projects agenda bookmarks).")
+
+(defun my-dash--trunc (str width)
+  "Truncate STR to display WIDTH, CJK-aware."
+  (let ((sw (string-width str)))
+    (if (<= sw width) str
+      (let ((pos 0) (w 0))
+        (while (and (< w (- width 1)) (< pos (length str)))
+          (setq w (+ w (char-width (aref str pos))))
+          (setq pos (1+ pos)))
+        (concat (substring str 0 pos) "…")))))
+
+(defun my-dash--icon (icon)
+  "Render Nerd Icon from full name like \"nf-md-folder\"."
+  (unless (featurep 'nerd-icons)
+    (require 'nerd-icons nil t))
+  (let ((family (and (string-match "^nf-\\([a-z]+\\)-" icon)
+                     (match-string 1 icon))))
+    (cond
+     ((string= family "fa")  (nerd-icons-faicon icon))
+     ((string= family "md")  (nerd-icons-mdicon icon))
+     ((string= family "oct") (nerd-icons-octicon icon))
+     ((string= family "dev") (nerd-icons-devicon icon))
+     ((string= family "cod") (nerd-icons-codicon icon))
+     (t (nerd-icons-mdicon icon)))))
+
+(defun my-dash--click-map (action)
+  "Keymap for clickable tag: ACTION (a form)."
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "RET") (lambda (&rest _) (interactive) (eval action)))
+    (define-key map [mouse-1] (lambda (&rest _) (interactive) (eval action)))
+    map))
+
+(defun my-dash--align (spec)
+  "Insert a space positioned by display :align-to SPEC (no space padding)."
+  (insert (propertize " " 'display `(space :align-to ,spec))))
+
+(defun my-dash--line-width (icon display)
+  "Estimated display width (cols) of one card line: ICON + DISPLAY.
+Matches svg-lib-tag rendered width = (string-width + :padding) cols."
+  (+ (string-width (my-dash--trunc (format "%s %s"
+                                           (my-dash--icon icon) display)
+                                   my-dash-card-width))
+     my-dash-tag-padding))
+
+(defun my-dash--card-width (icon label rows)
+  "Actual width (cols) of a card = max(title, content rows)."
+  (let ((w (my-dash--line-width icon label)))
+    (dolist (r rows)
+      (when r
+        (setq w (max w (my-dash--line-width (nth 0 r) (nth 1 r))))))
+    w))
+
+(defun my-dash--insert-tag (icon display action color &optional height)
+  "Insert rounded svg-lib tag (fixed-width card row), clickable via ACTION.
+GUI: svg-lib-tag SVG image with keymap; batch: text with text-properties."
+  (let* ((text (my-dash--trunc (format "%s %s" (my-dash--icon icon) display)
+                               my-dash-card-width))
+         (style `(:foreground ,color :background "#21252b" :stroke 1
+                   :radius 6 :padding ,my-dash-tag-padding :margin 0
+                   :height ,(or height 1.2))))
+    (if (display-graphic-p)
+        (progn
+          (require 'svg-lib nil t)
+          (let ((img (svg-lib-tag text style)))
+            (insert (propertize " "
+                                'display img
+                                'keymap (my-dash--click-map action)
+                                'mouse-face 'highlight
+                                'follow-link t
+                                'help-echo (format "RET: %s" action)))))
+      (insert (propertize text
+                          'keymap (my-dash--click-map action)
+                          'mouse-face 'highlight
+                          'follow-link t
+                          'face `(:foreground ,color))))))
+
+(defun my-dash--insert-card-pair (spec1 spec2)
+  "Insert two cards side by side, centered as one horizontal group.
+
+SPEC is (ICON LABEL ROWS) where ROWS are (icon display action color).
+
+Layout algorithm (dynamic, window-width independent):
+  w1/w2 = actual card widths; gap fixed; total = w1 + gap + w2.
+  Each line's left card starts at `(- center (/ total 2))',
+  right card at `(- center (/ total 2)) + w1 + gap'.
+  `center' is a display-spec symbol resolved against the current
+  window on every redisplay — no resize hook needed."
+  (cl-destructuring-bind (icon1 label1 rows1) spec1
+    (cl-destructuring-bind (icon2 label2 rows2) spec2
+      (let* ((w1 (my-dash--card-width icon1 label1 rows1))
+             (w2 (my-dash--card-width icon2 label2 rows2))
+             (total (+ w1 my-dash-card-gap w2))
+             (half (/ total 2))
+             (col1 `(- center ,half))
+             (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap))))
+        ;; title row
+        (my-dash--align col1)
+        (my-dash--insert-tag icon1 label1 '(ignore) "#61afef" 1.5)
+        (my-dash--align col2)
+        (my-dash--insert-tag icon2 label2 '(ignore) "#61afef" 1.5)
+        (insert "\n")
+        ;; content rows
+        (dotimes (i my-dash-card-rows)
+          (let ((r1 (nth i rows1))
+                (r2 (nth i rows2)))
+            (my-dash--align col1)
+            (when r1
+              (my-dash--insert-tag (nth 0 r1) (nth 1 r1) (nth 2 r1) (nth 3 r1)))
+            (my-dash--align col2)
+            (when r2
+              (my-dash--insert-tag (nth 0 r2) (nth 1 r2) (nth 2 r2) (nth 3 r2)))
+            (insert "\n")))
+        (insert "\n")))))
+
+;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
+(defun my-dash--recents-data ()
+  "Recent files as list of (NAME . PATH)."
+  (mapcar (lambda (f)
+            (cons (file-name-nondirectory (directory-file-name f)) f))
+          (cl-remove-if (lambda (f) (or (null f) (string-match-p "^\\s-*$" f)))
+                        (seq-take recentf-list 6))))
+
+(defun my-dash--projects-data ()
+  "Projectile projects as list of (NAME . ROOT)."
+  (when (bound-and-true-p projectile-mode)
+    (mapcar (lambda (p) (cons (projectile-project-name p) p))
+            (seq-take (projectile-relevant-known-projects) 5))))
+
+(defun my-dash--agenda-data ()
+  "Today's agenda as list of (DISPLAY . nil)."
+  (let ((org-agenda-window-setup 'current-window)
+        (org-agenda-sticky nil))
+    (save-window-excursion
+      (with-temp-buffer
+        (org-agenda nil "a")
+        (let ((lines '()))
+          (goto-char (point-min))
+          (while (not (eobp))
+            (let ((trimmed (string-trim
+                            (buffer-substring-no-properties
+                             (line-beginning-position) (line-end-position)))))
+              (when (and (> (length trimmed) 0)
+                         (or (string-match-p "^[0-9]\\{2\\}:[0-9]\\{2\\}" trimmed)
+                             (string-match-p "^\\(?:TODO\\|DONE\\|Sched\\)" trimmed)))
+                (push (cons trimmed nil) lines)))
+            (forward-line 1))
+          (seq-take (nreverse lines) 5))))))
+
+(defun my-dash--bookmarks-data ()
+  "Bookmarks as list of (NAME . LOCATION)."
+  (require 'bookmark)
+  (when (and (boundp 'bookmark-alist) bookmark-alist)
+    (mapcar (lambda (bm)
+              (let ((name (bookmark-name-from-full-record bm)))
+                (cons name (or (bookmark-location bm) ""))))
+            (seq-take bookmark-alist 5))))
+
+(defun my-dash--refresh-cache ()
+  "Fill `my-dash--cache' from data sources."
+  (setq my-dash--cache
+        (list (my-dash--recents-data)
+              (my-dash--projects-data)
+              (my-dash--agenda-data)
+              (my-dash--bookmarks-data))))
+
+(defun my-dash-insert-items ()
+  "Render 2×2 card grid: recents/projects/agenda/bookmarks."
+  (unless my-dash--cache
+    (my-dash--refresh-cache))
+  (let ((recents (nth 0 my-dash--cache))
+        (projects (nth 1 my-dash--cache))
+        (agenda (nth 2 my-dash--cache))
+        (bookmarks (nth 3 my-dash--cache)))
+    (my-dash--insert-card-pair
+     (list "nf-fa-files_o" "Recent Files"
+           (mapcar (lambda (f)
+                     (list "nf-md-file" (car f) (list 'find-file-existing (cdr f)) "#98be65"))
+                   (seq-take recents my-dash-card-rows)))
+     (list "nf-fa-folder_open_o" "Projects"
+           (mapcar (lambda (p)
+                     (list "nf-md-folder" (car p) (list 'projectile-switch-project (cdr p)) "#c678dd"))
+                   (seq-take projects my-dash-card-rows))))
+    (my-dash--insert-card-pair
+     (list "nf-fa-calendar" "Agenda"
+           (mapcar (lambda (a)
+                     (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") "#e5c07b"))
+                   (seq-take agenda my-dash-card-rows)))
+     (list "nf-fa-bookmark_o" "Bookmarks"
+           (mapcar (lambda (b)
+                     (list "nf-md-bookmark" (car b)
+                           (list 'bookmark-jump (car b)) "#56b6c2"))
+                   (seq-take bookmarks my-dash-card-rows))))))
+
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
 ;; C-c h 随时回到 Dashboard (home)
 (global-set-key (kbd "C-c h") #'dashboard-open)
@@ -260,9 +463,11 @@
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
   (dashboard-banner-logo-title "Welcome to Emacs")
-  ;; 最近文件/项目数量 (recents 太多会刷屏)
+  ;; 四模块: recents/projects/agenda/bookmarks (卡片化渲染, 见 my-dash-insert-items)
   (dashboard-items '((recents . 6)
-                     (projects . 5)))
+                     (projects . 5)
+                     (agenda . 5)
+                     (bookmarks . 5)))
   (dashboard-projects-backend 'projectile)
   ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
   (dashboard-path-style 'truncate-beginning)
@@ -279,7 +484,7 @@
      dashboard-insert-newline
      dashboard-insert-init-info
      dashboard-insert-newline
-     dashboard-insert-items
+     my-dash-insert-items
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
