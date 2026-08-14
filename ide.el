@@ -203,7 +203,6 @@
 (defconst my-dash-card-width 28 "Uniform content width in chars per card row.")
 (defconst my-dash-card-rows 5 "Max content rows per card.")
 (defconst my-dash-card-gap 4 "Horizontal gap between two cards, in cols.")
-(defconst my-dash-tag-padding 3 "svg-lib-tag :padding, for width estimation.")
 
 (defvar my-dash--cache nil
   "Cached dashboard data: (recents projects agenda bookmarks).")
@@ -233,10 +232,15 @@
      (t (nerd-icons-mdicon icon)))))
 
 (defun my-dash--click-map (action)
-  "Keymap for clickable tag: ACTION (a form)."
+  "Keymap for clickable tag.
+ACTION is a Lisp form (eval'd) or a function (funcall'd)."
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") (lambda (&rest _) (interactive) (eval action)))
-    (define-key map [mouse-1] (lambda (&rest _) (interactive) (eval action)))
+    (define-key map (kbd "RET")
+      (lambda (&rest _) (interactive)
+        (if (functionp action) (funcall action) (eval action))))
+    (define-key map [mouse-1]
+      (lambda (&rest _) (interactive)
+        (if (functionp action) (funcall action) (eval action))))
     map))
 
 (defun my-dash--align (spec)
@@ -252,9 +256,9 @@ Spaces live inside the svg-lib image, not as buffer layout."
       (concat str (make-string (- width sw) ?\s)))))
 
 (defun my-dash--line-width (&rest _)
-  "Uniform card line width (cols) = `my-dash-card-width' + :padding.
+  "Box outer width (cols): content `my-dash-card-width' + 2 borders.
 All card rows are padded to the same width, so cards are equal-sized."
-  (+ my-dash-card-width my-dash-tag-padding))
+  (+ my-dash-card-width 2))
 
 (defun my-dash--card-width (icon label rows)
   "Actual width (cols) of a card = max(title, content rows)."
@@ -264,39 +268,49 @@ All card rows are padded to the same width, so cards are equal-sized."
         (setq w (max w (my-dash--line-width (nth 0 r) (nth 1 r))))))
     w))
 
-(defun my-dash--insert-tag (icon display action color &optional height)
-  "Insert rounded svg-lib tag (fixed-width card row), clickable via ACTION.
-GUI: svg-lib-tag SVG image with keymap; batch: text with text-properties.
-Content is right-padded to `my-dash-card-width' so all cards equal size."
-  (let* ((text (my-dash--pad-right
-                (my-dash--trunc (format "%s %s" (my-dash--icon icon) display)
-                                my-dash-card-width)
-                my-dash-card-width))
-         (style `(:foreground ,color :background "#21252b" :stroke 1
-                   :radius 6 :padding ,my-dash-tag-padding :margin 0
-                   :height ,(or height 1.2))))
-    (if (display-graphic-p)
-        (progn
-          (require 'svg-lib nil t)
-          (let ((img (svg-lib-tag text style)))
-            (insert (propertize " "
-                                'display img
-                                'keymap (my-dash--click-map action)
+(defun my-dash--box-fill ()
+  "Horizontal box filler: ─ repeated to card content width."
+  (make-string my-dash-card-width ?─))
+
+(defun my-dash--box-top ()
+  "Top border interior: ─×W (caller wraps with ┌ and ┐)."
+  (my-dash--box-fill))
+
+(defun my-dash--box-mid ()
+  "Mid separator interior: ─×W (caller wraps with ├ and ┤)."
+  (my-dash--box-fill))
+
+(defun my-dash--box-bottom ()
+  "Bottom border interior: ─×W (caller wraps with └ and ┘)."
+  (my-dash--box-fill))
+
+(defun my-dash--box-row (text face &optional action)
+  "Render one box row: │ + padded TEXT + │.
+TEXT is padded to `my-dash-card-width' inside the box.
+If ACTION given, row is clickable."
+  (let* ((padded (my-dash--pad-right
+                  (my-dash--trunc text my-dash-card-width)
+                  my-dash-card-width))
+         (str (concat "│ " padded " │"))
+         (props (list 'face face)))
+    (when action
+      (setq props (append props
+                          (list 'keymap (my-dash--click-map action)
                                 'mouse-face 'highlight
                                 'follow-link t
                                 'help-echo (format "RET: %s" action)))))
-      (insert (propertize text
-                          'keymap (my-dash--click-map action)
-                          'mouse-face 'highlight
-                          'follow-link t
-                          'face `(:foreground ,color))))))
+    (apply #'propertize str props)))
+
+(defun my-dash--insert-card-row (text face &optional action)
+  "Insert `my-dash--box-row' at current point."
+  (insert (my-dash--box-row text face action)))
 
 (defun my-dash--insert-card-pair (spec1 spec2)
-  "Insert two cards side by side, centered as one horizontal group.
+  "Insert two boxed cards side by side, centered as one horizontal group.
 
 SPEC is (ICON LABEL ROWS) where ROWS are (icon display action color).
 
-Layout algorithm (dynamic, window-width independent):
+Layout algorithm (dynamic, window-width independent, unchanged):
   w1/w2 = actual card widths; gap fixed; total = w1 + gap + w2.
   Each line's left card starts at `(- center (/ total 2))',
   right card at `(- center (/ total 2)) + w1 + gap'.
@@ -310,23 +324,46 @@ Layout algorithm (dynamic, window-width independent):
              (half (/ total 2))
              (col1 `(- center ,half))
              (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap))))
-        ;; title row
+        ;; ---- top border ----
         (my-dash--align col1)
-        (my-dash--insert-tag icon1 label1 '(ignore) "#61afef" 1.5)
+        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face '(:foreground "#49505e")))
         (my-dash--align col2)
-        (my-dash--insert-tag icon2 label2 '(ignore) "#61afef" 1.5)
+        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face '(:foreground "#49505e")))
         (insert "\n")
-        ;; content rows
+        ;; ---- title row ----
+        (my-dash--align col1)
+        (my-dash--insert-card-row
+         (format "%s %s" (my-dash--icon icon1) label1) '(:foreground "#61afef"))
+        (my-dash--align col2)
+        (my-dash--insert-card-row
+         (format "%s %s" (my-dash--icon icon2) label2) '(:foreground "#61afef"))
+        (insert "\n")
+        ;; ---- separator ----
+        (my-dash--align col1)
+        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face '(:foreground "#49505e")))
+        (my-dash--align col2)
+        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face '(:foreground "#49505e")))
+        (insert "\n")
+        ;; ---- content rows ----
         (dotimes (i my-dash-card-rows)
           (let ((r1 (nth i rows1))
                 (r2 (nth i rows2)))
             (my-dash--align col1)
             (when r1
-              (my-dash--insert-tag (nth 0 r1) (nth 1 r1) (nth 2 r1) (nth 3 r1)))
+              (my-dash--insert-card-row
+               (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
+               `(:foreground ,(nth 3 r1)) (nth 2 r1)))
             (my-dash--align col2)
             (when r2
-              (my-dash--insert-tag (nth 0 r2) (nth 1 r2) (nth 2 r2) (nth 3 r2)))
+              (my-dash--insert-card-row
+               (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
+               `(:foreground ,(nth 3 r2)) (nth 2 r2)))
             (insert "\n")))
+        ;; ---- bottom border ----
+        (my-dash--align col1)
+        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face '(:foreground "#49505e")))
+        (my-dash--align col2)
+        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face '(:foreground "#49505e")))
         (insert "\n\n")))))
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
@@ -408,6 +445,41 @@ Layout algorithm (dynamic, window-width independent):
                            (list 'bookmark-jump (car b)) "#56b6c2"))
                    (seq-take bookmarks my-dash-card-rows))))))
 
+(defun my-dash--navigator-row (row)
+  "Render one navigator ROW as clickable buttons, joined by gap spaces.
+Buttons keep `dashboard-navigator-buttons' (icon label help action)."
+  (mapconcat
+   (lambda (btn)
+     (propertize (format "%s %s" (nth 0 btn) (nth 1 btn))
+                 'keymap (my-dash--click-map (nth 3 btn))
+                 'mouse-face 'highlight
+                 'follow-link t
+                 'help-echo (nth 2 btn)
+                 'face '(:foreground "#61afef")))
+   row (make-string my-dash-card-gap ?\s)))
+
+(defun my-dash-insert-navigator-box ()
+  "Render `dashboard-navigator-buttons' inside one centered box.
+The whole box is centered via `:align-to' so it follows the window
+center dynamically (same mechanism as the card grid)."
+  (let* ((rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
+         (content-w (apply #'max (mapcar #'string-width rows)))
+         (half (/ (+ content-w 2) 2))
+         (col `(- center ,half)))
+    (my-dash--align col)
+    (insert (propertize (concat "┌" (make-string content-w ?─) "┐")
+                        'face '(:foreground "#49505e")))
+    (insert "\n")
+    (dolist (row rows)
+      (my-dash--align col)
+      (insert (propertize (concat "│ " (my-dash--pad-right row content-w) " │")
+                          'face '(:foreground "#49505e")))
+      (insert "\n"))
+    (my-dash--align col)
+    (insert (propertize (concat "└" (make-string content-w ?─) "┘")
+                        'face '(:foreground "#49505e")))
+    (insert "\n")))
+
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
 ;; C-c h 随时回到 Dashboard (home)
 (global-set-key (kbd "C-c h") #'dashboard-open)
@@ -488,7 +560,7 @@ Layout algorithm (dynamic, window-width independent):
      dashboard-insert-newline
      dashboard-insert-banner-title
      dashboard-insert-newline
-     dashboard-insert-navigator
+     my-dash-insert-navigator-box
      dashboard-insert-newline
      dashboard-insert-init-info
      dashboard-insert-newline
