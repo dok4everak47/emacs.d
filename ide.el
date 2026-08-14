@@ -420,8 +420,8 @@ card always reflects the latest activity."
                             (buffer-substring-no-properties
                              (line-beginning-position) (line-end-position)))))
               (when (and (> (length trimmed) 0)
-                         (or (string-match-p "^[0-9]\\{2\\}:[0-9]\\{2\\}" trimmed)
-                             (string-match-p "^\\(?:TODO\\|DONE\\|Sched\\)" trimmed)))
+                         (or (string-match-p "[0-9]\\{2\\}:[0-9]\\{2\\}" trimmed)
+                             (string-match-p "\\(?:TODO\\|DONE\\|Sched\\(?:\\|ed\\)\\.?\\)" trimmed)))
                 (push (cons trimmed nil) lines)))
             (forward-line 1))
           (seq-take (nreverse lines) 5))))))
