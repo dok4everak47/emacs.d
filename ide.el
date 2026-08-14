@@ -345,27 +345,28 @@ Layout algorithm (dynamic, window-width independent, unchanged):
         (my-dash--insert-card-row
          (format "%s %s" (my-dash--icon icon2) label2) '(:foreground "#61afef"))
         (insert "\n")
-        ;; ---- separator ----
-        (my-dash--align col1)
-        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
-        (my-dash--align col2)
-        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
-        (insert "\n")
-        ;; ---- content rows ----
-        (dotimes (i my-dash-card-rows)
-          (let ((r1 (nth i rows1))
-                (r2 (nth i rows2)))
+        ;; ---- separator + content rows (height from actual data) ----
+        (let ((rows-n (max (length rows1) (length rows2))))
+          (when (> rows-n 0)
             (my-dash--align col1)
-            (when r1
-              (my-dash--insert-card-row
-               (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
-               `(:foreground ,(nth 3 r1)) (nth 2 r1)))
+            (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
             (my-dash--align col2)
-            (when r2
-              (my-dash--insert-card-row
-               (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
-               `(:foreground ,(nth 3 r2)) (nth 2 r2)))
-            (insert "\n")))
+            (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
+            (insert "\n"))
+          (dotimes (i rows-n)
+            (let ((r1 (nth i rows1))
+                  (r2 (nth i rows2)))
+              (my-dash--align col1)
+              (when r1
+                (my-dash--insert-card-row
+                 (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
+                 `(:foreground ,(nth 3 r1)) (nth 2 r1)))
+              (my-dash--align col2)
+              (when r2
+                (my-dash--insert-card-row
+                 (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
+                 `(:foreground ,(nth 3 r2)) (nth 2 r2)))
+              (insert "\n"))))
         ;; ---- bottom border ----
         (my-dash--align col1)
         (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face my-dash--box-border-face))
@@ -467,26 +468,29 @@ Buttons keep `dashboard-navigator-buttons' (icon label help action)."
 
 (defun my-dash-insert-navigator-box ()
   "Render `dashboard-navigator-buttons' inside one centered box.
-Box width = widest content line (incl. borders); every line is
-padded to that width so top/bottom/content lines always line up.
+Box width = widest button row + 2 borders. Each row is
+`│ <buttons padded> │' with border bars in the shared gray-blue
+face and buttons keeping their own bright-blue face.
 Centered via `:align-to' (same dynamic mechanism as the card grid)."
   (let* ((raw-rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
-         ;; content lines with borders, not yet padded
-         (content-lines (mapcar (lambda (r) (concat "│ " r " │")) raw-rows))
-         (box-w (apply #'max (mapcar #'string-width content-lines)))
+         (content-w (apply #'max (mapcar #'string-width raw-rows)))
+         ;; box = ┌ + (content+2) ─ + ┐ ; row = │ + space + content + space + │
+         ;; both total content-w + 4
+         (box-w (+ content-w 4))
          (half (/ box-w 2))
          (col `(- center ,half)))
     (my-dash--align col)
-    (insert (propertize (concat "┌" (make-string (- box-w 2) ?─) "┐")
+    (insert (propertize (concat "┌" (make-string (+ content-w 2) ?─) "┐")
                         'face my-dash--box-border-face))
     (insert "\n")
-    (dolist (line content-lines)
+    (dolist (row raw-rows)
       (my-dash--align col)
-      (insert (propertize (my-dash--pad-right line box-w)
-                          'face my-dash--box-border-face))
+      (insert (propertize "│ " 'face my-dash--box-border-face))
+      (insert (my-dash--pad-right row content-w))
+      (insert (propertize " │" 'face my-dash--box-border-face))
       (insert "\n"))
     (my-dash--align col)
-    (insert (propertize (concat "└" (make-string (- box-w 2) ?─) "┘")
+    (insert (propertize (concat "└" (make-string (+ content-w 2) ?─) "┘")
                         'face my-dash--box-border-face))
     (insert "\n")))
 
