@@ -364,7 +364,13 @@
 (provide 'init-mail)
 
 ;; ================= 诊断通道: 允许 emacsclient 远程检查 =================
-(server-start)
+;; 已有 server 时不重复启动: GUI Emacs 常驻时, 终端再开 emacs -nw 会
+;; 撞 socket 报 "Unable to start the Emacs server" 警告 (2026-08-14)。
+;; server-running-p 做真实连接测试, 陈旧 socket 返回 nil 不受影响。
+;; 注: server-running-p 定义在 server.el, 需先 require (否则 void-function)。
+(require 'server)
+(unless (server-running-p)
+  (server-start))
 
 ;; ================= Gnus: 启动不弹 auto-save 询问 =================
 ;; 上次 Gnus 未正常退出会残留 ~/.newsrc-dribble, 下次启动弹
