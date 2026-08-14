@@ -284,22 +284,29 @@ All card rows are padded to the same width, so cards are equal-sized."
   "Bottom border interior: ─×W (caller wraps with └ and ┘)."
   (my-dash--box-fill))
 
+(defconst my-dash--box-border-face '(:foreground "#49505e")
+  "Low-contrast gray-blue face for all box borders.")
+
 (defun my-dash--box-row (text face &optional action)
-  "Render one box row: │ + padded TEXT + │.
-TEXT is padded to `my-dash-card-width' inside the box.
-If ACTION given, row is clickable."
-  (let* ((padded (my-dash--pad-right
-                  (my-dash--trunc text my-dash-card-width)
-                  my-dash-card-width))
-         (str (concat "│ " padded " │"))
-         (props (list 'face face)))
-    (when action
-      (setq props (append props
-                          (list 'keymap (my-dash--click-map action)
-                                'mouse-face 'highlight
-                                'follow-link t
-                                'help-echo (format "RET: %s" action)))))
-    (apply #'propertize str props)))
+  "Render one box row: gray │ border + padded content with FACE.
+Content is padded to `my-dash-card-width' - 2 (one space each side),
+so the whole row matches border width (`my-dash-card-width' + 2).
+If ACTION given, only the CONTENT is clickable and highlighted —
+the │ border stays gray on selection."
+  (let* ((inner (- my-dash-card-width 2))
+         (padded (my-dash--pad-right
+                  (my-dash--trunc text inner)
+                  inner)))
+    (concat (propertize "│ " 'face my-dash--box-border-face)
+            (if action
+                (propertize padded
+                            'face face
+                            'keymap (my-dash--click-map action)
+                            'mouse-face 'highlight
+                            'follow-link t
+                            'help-echo (format "RET: %s" action))
+              (propertize padded 'face face))
+            (propertize " │" 'face my-dash--box-border-face))))
 
 (defun my-dash--insert-card-row (text face &optional action)
   "Insert `my-dash--box-row' at current point."
@@ -326,9 +333,9 @@ Layout algorithm (dynamic, window-width independent, unchanged):
              (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap))))
         ;; ---- top border ----
         (my-dash--align col1)
-        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face my-dash--box-border-face))
         (my-dash--align col2)
-        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face my-dash--box-border-face))
         (insert "\n")
         ;; ---- title row ----
         (my-dash--align col1)
@@ -340,9 +347,9 @@ Layout algorithm (dynamic, window-width independent, unchanged):
         (insert "\n")
         ;; ---- separator ----
         (my-dash--align col1)
-        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
         (my-dash--align col2)
-        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
         (insert "\n")
         ;; ---- content rows ----
         (dotimes (i my-dash-card-rows)
@@ -361,9 +368,9 @@ Layout algorithm (dynamic, window-width independent, unchanged):
             (insert "\n")))
         ;; ---- bottom border ----
         (my-dash--align col1)
-        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face my-dash--box-border-face))
         (my-dash--align col2)
-        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face '(:foreground "#49505e")))
+        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face my-dash--box-border-face))
         (insert "\n\n")))))
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
@@ -455,29 +462,32 @@ Buttons keep `dashboard-navigator-buttons' (icon label help action)."
                  'mouse-face 'highlight
                  'follow-link t
                  'help-echo (nth 2 btn)
-                 'face '(:foreground "#61afef")))
+                 'face '(:foreground "#7aa2f7")))
    row (make-string my-dash-card-gap ?\s)))
 
 (defun my-dash-insert-navigator-box ()
   "Render `dashboard-navigator-buttons' inside one centered box.
-The whole box is centered via `:align-to' so it follows the window
-center dynamically (same mechanism as the card grid)."
-  (let* ((rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
-         (content-w (apply #'max (mapcar #'string-width rows)))
-         (half (/ (+ content-w 2) 2))
+Box width = widest content line (incl. borders); every line is
+padded to that width so top/bottom/content lines always line up.
+Centered via `:align-to' (same dynamic mechanism as the card grid)."
+  (let* ((raw-rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
+         ;; content lines with borders, not yet padded
+         (content-lines (mapcar (lambda (r) (concat "│ " r " │")) raw-rows))
+         (box-w (apply #'max (mapcar #'string-width content-lines)))
+         (half (/ box-w 2))
          (col `(- center ,half)))
     (my-dash--align col)
-    (insert (propertize (concat "┌" (make-string content-w ?─) "┐")
-                        'face '(:foreground "#49505e")))
+    (insert (propertize (concat "┌" (make-string (- box-w 2) ?─) "┐")
+                        'face my-dash--box-border-face))
     (insert "\n")
-    (dolist (row rows)
+    (dolist (line content-lines)
       (my-dash--align col)
-      (insert (propertize (concat "│ " (my-dash--pad-right row content-w) " │")
-                          'face '(:foreground "#49505e")))
+      (insert (propertize (my-dash--pad-right line box-w)
+                          'face my-dash--box-border-face))
       (insert "\n"))
     (my-dash--align col)
-    (insert (propertize (concat "└" (make-string content-w ?─) "┘")
-                        'face '(:foreground "#49505e")))
+    (insert (propertize (concat "└" (make-string (- box-w 2) ?─) "┘")
+                        'face my-dash--box-border-face))
     (insert "\n")))
 
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
