@@ -494,6 +494,22 @@
   ;; token 用 plstore 加密存储, 需要本地 GPG 密钥
   ;; 首次配置: gpg --batch --gen-key 生成无口令密钥, 邮箱固定 emacs-plstore@localhost
   (setq plstore-encrypt-to '("emacs-plstore@localhost"))
+  ;; 预填充 org-generic-id-locations, 避免 org-gcal 每次启动 require
+  ;; org-generic-id.el 时重复打印 "Loading org-generic-id-locations on
+  ;; first load." 并重新 load 数据文件 (包内判断在文件加载中执行, hash
+  ;; 恒为空, 故永远触发; 这里先塞入数据让 defvar 保留已有值)
+  (let ((loc-file (expand-file-name
+                   ".org-generic-id-locations" user-emacs-directory)))
+    (when (and (file-exists-p loc-file)
+               (not (boundp 'org-generic-id-locations)))
+      (setq org-generic-id-locations (make-hash-table :test 'equal))
+      (with-temp-buffer
+        (condition-case nil
+            (progn
+              (insert-file-contents loc-file)
+              (dolist (item (read (current-buffer)))
+                (puthash (car item) (cdr item) org-generic-id-locations)))
+          (error nil)))))
   ;; 加载 OAuth 凭据 — 必须在 require 之前 (包加载时检查 client-id/secret, 否则启动警告)
   (let ((cred (expand-file-name "gcal-client.el" user-emacs-directory)))
     (when (file-exists-p cred)
