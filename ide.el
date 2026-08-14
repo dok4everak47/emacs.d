@@ -476,30 +476,34 @@ bright-blue color. Both icon and label are clickable."
 
 (defun my-dash-insert-navigator-box ()
   "Render `dashboard-navigator-buttons' inside one centered box.
-Box width = widest button row + 2. Left border is placed at
-`(- center half)', right border at `(- center half) + box-w - 1' —
-both via `:align-to', so the right bar always closes the box
-regardless of any glyph width estimation error."
+Box width = widest button row + 4 (│ + space + content + space + │).
+Top `┐', content `│' and bottom `┘' are all placed via `:align-to'
+at the same right column, so they always line up regardless of any
+glyph width estimation error."
   (let* ((raw-rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
          (content-w (apply #'max (mapcar #'string-width raw-rows)))
-         (box-w (+ content-w 2))
+         (box-w (+ content-w 4))
          (half (/ box-w 2))
          (col `(- center ,half))
          (right `(+ (- center ,half) ,(1- box-w))))
     (my-dash--align col)
-    (insert (propertize (concat "┌" (make-string content-w ?─) "┐")
+    (insert (propertize (concat "┌" (make-string (+ content-w 2) ?─))
                         'face my-dash--box-border-face))
+    (my-dash--align right)
+    (insert (propertize "┐" 'face my-dash--box-border-face))
     (insert "\n")
     (dolist (row raw-rows)
       (my-dash--align col)
       (insert (propertize "│ " 'face my-dash--box-border-face))
       (insert row)
       (my-dash--align right)
-      (insert (propertize " │" 'face my-dash--box-border-face))
+      (insert (propertize "│" 'face my-dash--box-border-face))
       (insert "\n"))
     (my-dash--align col)
-    (insert (propertize (concat "└" (make-string content-w ?─) "┘")
+    (insert (propertize (concat "└" (make-string (+ content-w 2) ?─))
                         'face my-dash--box-border-face))
+    (my-dash--align right)
+    (insert (propertize "┘" 'face my-dash--box-border-face))
     (insert "\n")))
 
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
