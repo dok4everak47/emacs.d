@@ -241,6 +241,9 @@ ACTION is a Lisp form (eval'd) or a function (funcall'd)."
     (define-key map [mouse-1]
       (lambda (&rest _) (interactive)
         (if (functionp action) (funcall action) (eval action))))
+    (define-key map [mouse-2]
+      (lambda (&rest _) (interactive)
+        (if (functionp action) (funcall action) (eval action))))
     map))
 
 (defun my-dash--align (spec)
@@ -301,10 +304,9 @@ the │ border stays gray on selection."
             (if action
                 (propertize padded
                             'face face
-                            'keymap (my-dash--click-map action)
-                            'mouse-face 'highlight
-                            'follow-link t
-                            'help-echo (format "RET: %s" action))
+'keymap (my-dash--click-map action)
+                             'mouse-face 'highlight
+                             'help-echo (format "RET: %s" action))
               (propertize padded 'face face))
             (propertize " │" 'face my-dash--box-border-face))))
 
@@ -482,7 +484,6 @@ bright-blue color. Both icon and label are clickable."
             (action (nth 3 btn))
             (click-props (list 'keymap (my-dash--click-map action)
                                'mouse-face 'highlight
-                               'follow-link t
                                'help-echo (nth 2 btn))))
        (concat (apply #'propertize icon click-props)
                (apply #'propertize (concat " " label)
