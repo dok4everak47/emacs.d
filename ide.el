@@ -376,11 +376,27 @@ Layout algorithm (dynamic, window-width independent, unchanged):
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
 (defun my-dash--recents-data ()
-  "Recent files as list of (NAME . PATH)."
+  "Recent files as list of (NAME . PATH), existing files only."
   (mapcar (lambda (f)
             (cons (file-name-nondirectory (directory-file-name f)) f))
-          (cl-remove-if (lambda (f) (or (null f) (string-match-p "^\\s-*$" f)))
+          (cl-remove-if (lambda (f)
+                          (or (null f)
+                              (string-match-p "^\\s-*$" f)
+                              (not (file-exists-p f))))
                         (seq-take recentf-list 6))))
+
+(defun my-dash--on-recentf-changed (&rest _)
+  "Invalidate dashboard cache and re-render when recent files change.
+Runs from `find-file-hook' / `kill-buffer-hook' so the Recent Files
+card always reflects the latest activity."
+  (when (and (boundp 'dashboard-buffer-name)
+             (get-buffer dashboard-buffer-name))
+    (setq my-dash--cache nil)
+    (when (get-buffer-window dashboard-buffer-name)
+      (with-current-buffer dashboard-buffer-name
+        (dashboard-insert-startupify-lists t)))))
+(add-hook 'find-file-hook #'my-dash--on-recentf-changed)
+(add-hook 'kill-buffer-hook #'my-dash--on-recentf-changed)
 
 (defun my-dash--projects-data ()
   "Projectile projects as list of (NAME . ROOT)."
