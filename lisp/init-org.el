@@ -662,6 +662,7 @@
 ;; ⚠️ 前缀用 C-c r (roam), 因为 C-c n 已被 my-open-line-below (init-lazycat) 占用。
 (use-package org-roam
   :ensure t
+  :defer t                       ; 首次按 C-c r 时才加载 (启动省 ~0.5s, 2026-08-14)
   :bind (("C-c r i" . org-roam-node-insert)   ; 插入指向某笔记的链接
          ("C-c r f" . org-roam-node-find)      ; 按标题查找笔记
          ("C-c r c" . org-roam-capture)        ; 捕获新笔记

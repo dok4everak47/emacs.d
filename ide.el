@@ -436,41 +436,60 @@ card always reflects the latest activity."
 (defvar my-dash--agenda-watchdog nil
   "Watchdog timer: clears `my-dash--agenda-loading' if the subprocess hangs.")
 
+(defvar my-dash--agenda-refreshed nil
+  "Non-nil once the background subprocess refreshed the agenda this session.")
+
+(defun my-dash--agenda-cache-load ()
+  "Load agenda rows from the cache file (instant, previous session's data).
+缓存让启动时卡片秒显, 后台子进程随后刷新 (见 `my-dash--agenda-load-async')。
+缓存文件在 ~/.emacs.d/cache/ (已 gitignore)。"
+  (let ((cache (expand-file-name "cache/agenda-cache.el" user-emacs-directory)))
+    (when (and (not my-dash--agenda-rows) (file-exists-p cache))
+      (condition-case nil
+          (let ((data (with-temp-buffer
+                        (insert-file-contents cache)
+                        (read (current-buffer)))))
+            (when (consp data)
+              (setq my-dash--agenda-rows data)))
+        (error nil)))))
+
 (defun my-dash--agenda-load-async ()
   "Compute agenda data in a background --quick Emacs subprocess (~1s).
 org-agenda 在 GUI 里逐个打开 agenda 文件很慢 (实测 ~2s/文件) — 同步计算
-会冻结主界面。派生子进程用 --quick 加载 agenda-dump.el (只 require
-org + org-agenda, 不加载用户 init), agenda 文件列表由这里传入。
-子进程完成后 sentinel 更新卡片并重渲染。"
-  (unless (or my-dash--agenda-rows my-dash--agenda-loading)
-    (setq my-dash--agenda-loading t)
-    (let ((emacs (executable-find "emacs"))
-          (script (expand-file-name "agenda-dump.el" user-emacs-directory))
-          (out "/tmp/my-dash-agenda.out"))
-      (if (not emacs)
-          (progn (setq my-dash--agenda-loading nil)
-                 (my-dash--rerender))
-        (delete-file out t)
-        (let ((files (mapconcat (lambda (f) (format "%S" (expand-file-name f)))
-                                org-agenda-files " ")))
-          (make-process
-           :name "my-dash-agenda"
-           :buffer (generate-new-buffer " *my-dash-agenda*")
-           :command
-           (list emacs "--quick" "--batch"
-                 "-l" script
-                 "--eval"
-                 (format "(my-agenda-dump (quote (%s)) %S)" files out))
-           :sentinel #'my-dash--agenda-sentinel)))
-        ;; 看门狗: 子进程异常挂死 (如卡在某个提示) 时, 15s 后清除 loading,
-        ;; 卡片显示 "Agenda unavailable" 而不是永远 "Loading…";
-        ;; 子进程若稍后仍返回, sentinel 照常更新卡片。
-        (setq my-dash--agenda-watchdog
-              (run-at-time 15 nil
-                           (lambda ()
-                             (when my-dash--agenda-loading
-                               (setq my-dash--agenda-loading nil)
-                               (my-dash--rerender))))))))
+会冻结主界面。策略:
+  1) 有缓存文件 → 立即显示 (昨天的数据, 无 Loading 占位)
+  2) 每会话派一次子进程 (emacs --quick --batch + agenda-dump.el, ~1s)
+     刷新数据, sentinel 完成后更新卡片并重写缓存"
+  (unless my-dash--agenda-loading
+    (my-dash--agenda-cache-load)
+    (unless my-dash--agenda-refreshed
+      (setq my-dash--agenda-loading t)
+      (let ((emacs (executable-find "emacs"))
+            (script (expand-file-name "agenda-dump.el" user-emacs-directory))
+            (out "/tmp/my-dash-agenda.out"))
+        (if (not emacs)
+            (progn (setq my-dash--agenda-loading nil)
+                   (my-dash--rerender))
+          (delete-file out t)
+          (let ((files (mapconcat (lambda (f) (format "%S" (expand-file-name f)))
+                                  org-agenda-files " ")))
+            (make-process
+             :name "my-dash-agenda"
+             :buffer (generate-new-buffer " *my-dash-agenda*")
+             :command
+             (list emacs "--quick" "--batch"
+                   "-l" script
+                   "--eval"
+                   (format "(my-agenda-dump (quote (%s)) %S)" files out))
+             :sentinel #'my-dash--agenda-sentinel)))
+          ;; 看门狗: 子进程异常挂死 (如卡在某个提示) 时, 15s 后清除 loading,
+          ;; 卡片不再显示 "Loading…" (有缓存时本来就显示缓存数据)。
+          (setq my-dash--agenda-watchdog
+                (run-at-time 15 nil
+                             (lambda ()
+                               (when my-dash--agenda-loading
+                                 (setq my-dash--agenda-loading nil)
+                                 (my-dash--rerender)))))))))
 
 (defun my-dash--agenda-sentinel (proc _event)
   "Subprocess finished: read the result sexp, update cache and re-render."
@@ -483,6 +502,7 @@ org + org-agenda, 不加载用户 init), agenda 文件列表由这里传入。
       (when (buffer-live-p (process-buffer proc))
         (kill-buffer (process-buffer proc)))
       (setq my-dash--agenda-loading nil)
+      (setq my-dash--agenda-refreshed t)
       (let ((data (and ok
                        (file-exists-p out)
                        (condition-case nil
@@ -491,7 +511,13 @@ org + org-agenda, 不加载用户 init), agenda 文件列表由这里传入。
                              (read (current-buffer)))
                          (error nil)))))
         (when (consp data)
-          (setq my-dash--agenda-rows data)))
+          (setq my-dash--agenda-rows data)
+          ;; 写缓存: 下次启动秒显 (cache/ 已 gitignore)
+          (condition-case nil
+              (with-temp-file
+                  (expand-file-name "cache/agenda-cache.el" user-emacs-directory)
+                (insert (prin1-to-string data)))
+            (error nil))))
       ;; 重建 cache (agenda 槽换新数据) — 直接 rerender 会用启动时的
       ;; 旧 cache (agenda 槽 nil), 卡片停留在占位/不可用状态 (2026-08-14)。
       ;; refresh-cache 内部的 agenda-load-async 有 rows 非 nil 守卫, 不会重复派生。
