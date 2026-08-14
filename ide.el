@@ -455,42 +455,50 @@ Layout algorithm (dynamic, window-width independent, unchanged):
 
 (defun my-dash--navigator-row (row)
   "Render one navigator ROW as clickable buttons, joined by gap spaces.
-Buttons keep `dashboard-navigator-buttons' (icon label help action)."
+Buttons keep `dashboard-navigator-buttons' (icon label help action).
+The icon is NOT re-propertized (its nerd-icons :family face must
+survive so the glyph stays 1 column); only the label gets the
+bright-blue color. Both icon and label are clickable."
   (mapconcat
    (lambda (btn)
-     (propertize (format "%s %s" (nth 0 btn) (nth 1 btn))
-                 'keymap (my-dash--click-map (nth 3 btn))
-                 'mouse-face 'highlight
-                 'follow-link t
-                 'help-echo (nth 2 btn)
-                 'face '(:foreground "#7aa2f7")))
+     (let* ((icon (nth 0 btn))
+            (label (nth 1 btn))
+            (action (nth 3 btn))
+            (click-props (list 'keymap (my-dash--click-map action)
+                               'mouse-face 'highlight
+                               'follow-link t
+                               'help-echo (nth 2 btn))))
+       (concat (apply #'propertize icon click-props)
+               (apply #'propertize (concat " " label)
+                      (append click-props
+                              (list 'face '(:foreground "#7aa2f7")))))))
    row (make-string my-dash-card-gap ?\s)))
 
 (defun my-dash-insert-navigator-box ()
   "Render `dashboard-navigator-buttons' inside one centered box.
-Box width = widest button row + 2 borders. Each row is
-`│ <buttons padded> │' with border bars in the shared gray-blue
-face and buttons keeping their own bright-blue face.
-Centered via `:align-to' (same dynamic mechanism as the card grid)."
+Box width = widest button row + 2. Left border is placed at
+`(- center half)', right border at `(- center half) + box-w - 1' —
+both via `:align-to', so the right bar always closes the box
+regardless of any glyph width estimation error."
   (let* ((raw-rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
          (content-w (apply #'max (mapcar #'string-width raw-rows)))
-         ;; box = ┌ + (content+2) ─ + ┐ ; row = │ + space + content + space + │
-         ;; both total content-w + 4
-         (box-w (+ content-w 4))
+         (box-w (+ content-w 2))
          (half (/ box-w 2))
-         (col `(- center ,half)))
+         (col `(- center ,half))
+         (right `(+ (- center ,half) ,(1- box-w))))
     (my-dash--align col)
-    (insert (propertize (concat "┌" (make-string (+ content-w 2) ?─) "┐")
+    (insert (propertize (concat "┌" (make-string content-w ?─) "┐")
                         'face my-dash--box-border-face))
     (insert "\n")
     (dolist (row raw-rows)
       (my-dash--align col)
       (insert (propertize "│ " 'face my-dash--box-border-face))
-      (insert (my-dash--pad-right row content-w))
+      (insert row)
+      (my-dash--align right)
       (insert (propertize " │" 'face my-dash--box-border-face))
       (insert "\n"))
     (my-dash--align col)
-    (insert (propertize (concat "└" (make-string (+ content-w 2) ?─) "┘")
+    (insert (propertize (concat "└" (make-string content-w ?─) "┘")
                         'face my-dash--box-border-face))
     (insert "\n")))
 
