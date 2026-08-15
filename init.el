@@ -723,5 +723,5 @@
 (when (not (display-graphic-p))
   (xterm-mouse-mode 1)
   ;; tty 滚轮每格滚动行数 (Shift 按住 = 1 行精细滚动)
-  (setq mouse-wheel-scroll-amount '(5 ((shift) . 1))))
+  (setq mouse-wheel-scroll-amount '(3 ((shift) . 1))))
 ;;; init.el ends here
