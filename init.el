@@ -715,4 +715,13 @@
           (error nil)))
       result))
   (advice-add 'nnimap-login :around #'my-nnimap-send-id-after-login))
+
+;; ================= 终端 (-nw) 鼠标支持 =================
+;; 触控板滚动/点击在 tty 下需要 xterm-mouse-mode — 不开则滚动事件
+;; 全被终端吃掉, Emacs buffer 不滚 (2026-08-15 实测)。
+;; GUI 下不需要 (原生鼠标), 且开了会干扰文本选择, 所以只非图形会话开。
+(when (not (display-graphic-p))
+  (xterm-mouse-mode 1)
+  ;; tty 滚轮每格滚动行数 (Shift 按住 = 1 行精细滚动)
+  (setq mouse-wheel-scroll-amount '(5 ((shift) . 1))))
 ;;; init.el ends here
