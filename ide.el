@@ -195,7 +195,7 @@
     ["切换到文件树窗口" dired-sidebar-jump-to-sidebar t]
     ["刷新文件树" revert-buffer t]
     ["项目内找文件" my-consult-projectile-find-file t]
-    ["切换项目" my-consult-projectile-switch-project t]
+    ["切换项目" projectile-switch-project t]
     ["启动 LSP" eglot t]
     ["关闭 LSP" eglot-shutdown t]))
 
@@ -401,10 +401,15 @@ card always reflects the latest activity."
 (add-hook 'kill-buffer-hook #'my-dash--on-recentf-changed)
 
 (defun my-dash--projects-data ()
-  "Projectile projects as list of (NAME . ROOT)."
+  "Projectile projects as list of (NAME . ROOT).
+Filters out non-projects and bypasses projectile-project-name cache."
   (when (bound-and-true-p projectile-mode)
-    (mapcar (lambda (p) (cons (projectile-project-name p) p))
-            (seq-take (projectile-relevant-known-projects) 5))))
+    (seq-mapcat
+     (lambda (p)
+       ;; Skip entries that aren't actual projects (e.g. no .git, no marker)
+       (when (projectile-project-p p)
+         (list (cons (projectile-default-project-name p) p))))
+     (seq-take (projectile-relevant-known-projects) 20))))
 
 (defun my-dash--bookmarks-data ()
   "Bookmarks as list of (NAME . LOCATION)."
@@ -559,7 +564,7 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
                    (seq-take recents my-dash-card-rows)))
      (list "nf-fa-folder_open_o" "Projects"
            (mapcar (lambda (p)
-                     (list "nf-md-folder" (car p) (list 'projectile-switch-project (cdr p)) "#c678dd"))
+                     (list "nf-md-folder" (car p) (list 'projectile-switch-project-by-name (cdr p)) "#c678dd"))
                    (seq-take projects my-dash-card-rows))))
     (my-dash--insert-card-pair
      (list "nf-fa-calendar" "Agenda"
