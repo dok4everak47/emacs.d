@@ -45,3 +45,6 @@ org-roam.db-*
 # 编辑器工具状态目录 (本地工具生成, 不进版本库)
 .cortexkit/
 .supervisor/
+
+# 已归档的临时诊断脚本 (archive/ 全目录不入库)
+archive/
