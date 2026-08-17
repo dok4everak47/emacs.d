@@ -155,7 +155,16 @@
                   (local-set-key (kbd "<delete>") #'my-simple-indent-backspace)
                   (local-set-key (kbd "C-h") #'my-simple-indent-backspace))
               (setq-local indent-line-function #'my-simple-indent-tab)
-              (setq-local tab-width 2)
+              ;; ⚠️ 必须锁死空格缩进: Emacs 默认 indent-tabs-mode=t, 否则
+              ;; indent-line-to 会插入 tab 字符而不是空格 (实测 js-ts TAB 输出 \t)。
+              (setq-local indent-tabs-mode nil)
+              ;; 缩进宽度按语言: JS/TS/TSX 等 2 空格, Python 4 空格 (PEP 8),
+              ;; 其余编程语言 (nix/rkt 等) 保持 2 空格。
+              ;; TAB/RET/退格函数都读 buffer-local tab-width, 改这里即全局生效。
+              (setq-local tab-width
+                          (if (derived-mode-p 'python-ts-mode 'python-mode)
+                              4
+                            2))
               (setq-local electric-indent-inhibit t)   ; 关掉 RET 自动缩进 (我们自己管)
               ;; ⚠️ 三个都要绑: 有的键盘 Return 发 <return> 而非 RET,
               ;; 只绑 RET 会导致 Return 走 electric-indent 默认 newline
