@@ -298,12 +298,6 @@ let 动态绑定, :around advice 读取。")
                     (delete-region beg (point))
                     (yas-expand-snippet (yas--template-content tpl))))))))))
 
-;; 所有编程 buffer 的 CAPF 最前插入 yasnippet (无 LSP 场景也能用)
-(dolist (fn '(my-capf-yasnippet))
-  (unless (member fn (default-value 'completion-at-point-functions))
-    (setq-default completion-at-point-functions
-                  (cons fn (default-value 'completion-at-point-functions)))))
-
 ;; lsp 连接后 (lsp-completion-mode 开启, lsp 被 add-to-list 到头部) 重排:
 ;; 把 my-capf-yasnippet 提到 lsp 之前, 保证 snippet 触发词优先
 (defun my-capf-yasnippet-prioritize ()
@@ -338,6 +332,15 @@ let 动态绑定, :around advice 读取。")
     (unless (member fn (default-value 'completion-at-point-functions))
       (setq-default completion-at-point-functions
                     (append (default-value 'completion-at-point-functions) (list fn))))))
+
+;; ⚠️ 必须放在 cape 段之后执行: 两段都用 cons 前插, 后执行者排最前。
+;; yasnippet 段若在 cape 段前, cape-dict/file/dabbrev 会反超到最前 →
+;; LSP 未连接时触发词被 cape 先截走 ("TS 触发词失效" bug 根因, 2026-08 实测)。
+;; 这里把 my-capf-yasnippet 提到 cape 三兄弟之前 (无 LSP 场景也能用)。
+(dolist (fn '(my-capf-yasnippet))
+  (unless (member fn (default-value 'completion-at-point-functions))
+    (setq-default completion-at-point-functions
+                  (cons fn (default-value 'completion-at-point-functions)))))
 
 ;; minibuffer 里也用 corfu (M-x 补全时)
 ;; ⚠️ 坑: corfu 激活后劫持 RET (corfu-insert), yes/no 确认框 (yes-or-no-p)
