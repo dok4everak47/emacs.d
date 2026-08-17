@@ -23,9 +23,14 @@
   "RET: 首次回车新行继承当前行缩进 (rkt=2/py=4 当前层级);
 连续第二次回车 (紧接上次回车, 且当前行是空行) → 不缩进回行首.
 已有缩进的空行上回车仍继承缩进 (只\"连续第二次\"才取消).
-光标后的行尾空白留在旧行, 不推到新行 (避免缩进叠加)."
+光标后的行尾空白留在旧行, 不推到新行 (避免缩进叠加).
+括号对间回车 (光标在 electric-pair 自动补的右括号前):
+  新行缩进 = 当前行缩进 + tab-width (进入下一层),
+  右括号推到下一行并缩进到匹配开括号的列 (括号对应缩进)。"
   (interactive)
-  (let ((empty-line (save-excursion
+  (let ((close-paren (and (not (eobp))
+                          (memq (char-after) '(?\) ?\] ?\}))))
+        (empty-line (save-excursion
                       (beginning-of-line)
                       (looking-at-p "^[ \t]*$")))
         (col (current-indentation)))
@@ -36,10 +41,21 @@
       (when (looking-at "[ \t]*")
         (delete-region (point) (match-end 0))))
     (newline)
+    ;; 连续第二次回车 (上次也是回车, 且当前行是空行) → 回行首;
+    ;; 括号对内 → 当前行缩进 + tab-width (进入下一层);
+    ;; 否则 → 继承当前行缩进
     (indent-to (if (and empty-line
                         (eq last-command 'my-simple-indent-newline))
                    0
-                 col))))
+                 (+ col (if close-paren tab-width 0))))
+    (when close-paren
+      (save-excursion
+        (newline 1 t)                    ; 右括号推到下一行
+        ;; C 系开大括号/括号常位于行尾 (如 `function foo() {`),
+        ;; 右括号应对齐当前行起始缩进 (col), 而非开括号所在列。
+        (beginning-of-line)
+        (delete-horizontal-space)
+        (indent-to col)))))
 
 (defun my-simple-indent-backspace ()
   "Backspace: 按缩进单位删 (一次删 tab-width 个空格), 否则删 1 字符."
