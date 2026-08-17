@@ -169,6 +169,8 @@
   :config
   (setq eglot-autoshutdown t
         eglot-confirm-server-edits nil)
+  ;; 备注: typescript-language-server/pyright/phpactor 用裸命令名,
+  ;; eglot 走 executable-find 查 PATH; ~/.local/bin 已在 PATH, 无需追加路径。
   ;; LSP server 注册 (eglot 默认不知道这些 server)
   (with-eval-after-load 'eglot
     (dolist (entry '((php-mode . ("phpactor" "language-server"))
@@ -182,6 +184,83 @@
   (add-hook 'python-ts-mode-hook #'eglot-ensure)
   (add-hook 'js-ts-mode-hook #'eglot-ensure)
   (add-hook 'typescript-ts-mode-hook #'eglot-ensure))
+
+;; ========== JS/TS 开发环境 (语法高亮 + 代码补全) ==========
+;; 补全前端: corfu (init-completion.el 全局启用), 不再用 company。
+;; eglot 的 LSP 补全自动注册到 completion-at-point-functions,
+;; corfu 直接消费 CAPF; cape 提供 dabbrev/file/dict 兜底 (init-completion.el)。
+
+;; ---- 1. (旧) Company 补全框架 ---- 已禁用, 改用 corfu + eglot CAPF
+;; (use-package company
+;;   :ensure t
+;;   :hook (after-init . global-company-mode)
+;;   :config
+;;   (setq company-idle-delay 0
+;;         company-minimum-prefix-length 2
+;;         company-show-quick-access t
+;;         company-tooltip-align-annotations t
+;;         company-transformers '(company-sort-by-occurrence))
+;;   (setq company-active-map
+;;         (let ((map (make-sparse-keymap)))
+;;           (define-key map (kbd "<tab>") #'company-complete-common-or-cycle)
+;;           (define-key map (kbd "<backtab>") #'company-select-previous)
+;;           (define-key map (kbd "C-n") #'company-select-next)
+;;           (define-key map (kbd "C-p") #'company-select-previous)
+;;           (define-key map (kbd "M-n") #'company-select-next)
+;;           (define-key map (kbd "M-p") #'company-select-previous)
+;;           (define-key map (kbd "<return>") nil)
+;;           map)))
+
+;; ---- 2. (旧) Company Capf ---- 已禁用, corfu 直连 eglot CAPF
+;; (eval-after-load 'company
+;;   '(progn
+;;      (add-to-list 'company-backends 'company-capf)))
+
+;; ---- 3. JS/TS 语法增强 (js2-mode 备选; tree-sitter 优先) ----
+;; tree-sitter 语法高亮 (Emacs 29+, 比 js2-mode 更精确)
+(use-package treesit-auto
+  :ensure t
+  :config
+  (setq treesit-auto-install 'prompt)
+  (global-treesit-auto-mode))
+
+;; JS/TS major-mode 配置
+(add-to-list 'auto-mode-alist '("\\.js\\'" . js-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.mjs\\'" . js-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.cjs\\'" . js-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.jsx\\'" . js-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.json\\'" . json-ts-mode))
+
+;; JS/TS 文件钩子: eglot LSP + eldoc (corfu 由 init-completion.el 全局启用)
+(add-hook 'js-ts-mode-hook
+          (lambda ()
+            (eldoc-mode 1)
+            (when (fboundp 'eglot-ensure)
+              (eglot-ensure))))
+
+(add-hook 'typescript-ts-mode-hook
+          (lambda ()
+            (eldoc-mode 1)
+            (when (fboundp 'eglot-ensure)
+              (eglot-ensure))))
+
+;; ---- 4. 语法高亮增强 (高亮 TODO/FIXME/NOTE 等标记) ----
+(use-package hl-todo
+  :ensure t
+  :config
+  (global-hl-todo-mode 1)
+  :custom
+  (hl-todo-keyword-faces
+   '(("TODO"   . "#e5c07b")   ; 黄色 - 待办
+     ("FIXME"  . "#e06c75")   ; 红色 - 待修复
+     ("BUG"    . "#e06c75")   ; 红色 - Bug
+     ("HACK"   . "#c678dd")   ; 紫色 - 临时方案
+     ("NOTE"   . "#61afef")   ; 蓝色 - 笔记
+     ("XXX"    . "#56b6c2")    ; 青色 - 警告
+     ("PERF"   . "#98c379")))  ; 绿色 - 性能优化
+  (hl-todo-activate-in-modes '(js-ts-mode typescript-ts-mode python-ts-mode php-mode)))
 
 ;; ---------- php-mode: PHP 语法高亮 + 缩进 ----------
 (use-package php-mode

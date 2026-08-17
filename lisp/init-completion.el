@@ -180,31 +180,58 @@ let 动态绑定, :around advice 读取。")
   (embark-collect-mode . consult-preview-at-point-mode))
 
 ;; ---------- corfu: 代码补全弹窗 ----------
-;; 轻量, 基于 child frame, 不依赖 company
+;; 轻量, 基于 child frame, 原生消费 eglot 的 completion-at-point。
+;; CAPF 顺序由 eglot 自动注册, cape (dabbrev/file/dict) 在后兜底。
 (use-package corfu
   :ensure t
   :init
   (global-corfu-mode 1)
   :custom
   (corfu-auto t)                           ; 自动弹出
-  (corfu-auto-delay 0.2)
-  (corfu-auto-prefix 2)                    ; 至少输入 2 字符才触发
-  (corfu-cycle t)                          ; 循环候选
-  (corfu-quit-no-match 'separator)
-  (corfu-preview-current t)
-  (corfu-preselect 'prompt)
+  (corfu-auto-delay 0.1)                   ; 短延迟, 避开 eglot LSP 网络抖动
+  (corfu-auto-prefix 1)                    ; 1 字符即触发 (支持 obj. 点访问)
+  (corfu-cycle t)                          ; 候选循环
+  (corfu-quit-no-match 'separator)         ; 无匹配按分隔符收菜单
+  (corfu-preview-current t)                ; 候选文档预览
+  (corfu-preselect 'prompt)                ; 默认选中首项
+  (corfu-on-exact-match nil)               ; 完全匹配也保留菜单, 方便看同名词
   :config
   ;; Tab 接受补全
   (define-key corfu-map (kbd "TAB") #'corfu-insert)
-  (define-key corfu-map (kbd "<tab>") #'corfu-insert))
+  (define-key corfu-map (kbd "<tab>") #'corfu-insert)
+  ;; RET 不抢 (避免误提交, eglot 自动补全时常用 Tab 接受)
+  (define-key corfu-map (kbd "<return>") nil))
+
+;; ---------- 终端 (-nw) 下的 corfu 弹窗提示 ----------
+;; corfu 浮窗依赖 child frame, 纯终端不支持 (corfu--popup-support-p 为 nil):
+;; 打字自动弹出 (corfu-auto) 不会触发, 手动补全也退回内置 *Completions* 列表。
+;; 这是设计行为, 不是配置坏了 (2026-08-17 诊断确认)。
+;; 终端里要浮窗需装 tty-child-frames (GitHub 源码包, 非 ELPA, 且依赖终端兼容性)。
+(when (not (display-graphic-p))
+  (defvar my-corfu-tty-warned nil
+    "终端会话内是否已提示过 corfu 浮窗不可用 (每个会话只提示一次).")
+  (defun my-corfu-tty-warn ()
+    "打开编程文件时提示一次: 终端下 corfu 浮窗不可用."
+    (unless my-corfu-tty-warned
+      (setq my-corfu-tty-warned t)
+      (message "提示: 终端模式下 corfu 补全浮窗不可用 (需 child frame)。写代码建议用 GUI Emacs; 终端内可试试 TAB 看内置候选列表。")))
+  (add-hook 'prog-mode-hook #'my-corfu-tty-warn))
 
 ;; cape: corfu 的额外补全后端 (dictionary/abbrev/file/dabbrev)
+;; ⚠️ 坑: 不能用 (add-to-list 'completion-at-point-functions ...)!
+;; 配置加载时 current-buffer 是 *scratch* (emacs-lisp-mode), 它的
+;; completion-at-point-functions 是 buffer-local 的 → add-to-list 会把
+;; cape 写进 *scratch* 的局部值, 默认值 (所有普通文件用的) 永远没有,
+;; 兜底 100% 失效 (2026-08-17 实测)。必须显式写 default-value, 且放在
+;; :init (启动即执行), 不能放 :config (等包加载, 可能永不执行)。
 (use-package cape
   :ensure t
   :init
-  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
-  (add-to-list 'completion-at-point-functions #'cape-file)
-  (add-to-list 'completion-at-point-functions #'cape-dict))
+  ;; cape-dict/cape-file/cape-dabbrev 依次压进默认 CAPF 最前 (tags 兜底在后)
+  (dolist (fn '(cape-dabbrev cape-file cape-dict))
+    (unless (member fn (default-value 'completion-at-point-functions))
+      (setq-default completion-at-point-functions
+                    (cons fn (default-value 'completion-at-point-functions))))))
 
 ;; minibuffer 里也用 corfu (M-x 补全时)
 ;; ⚠️ 坑: corfu 激活后劫持 RET (corfu-insert), yes/no 确认框 (yes-or-no-p)
