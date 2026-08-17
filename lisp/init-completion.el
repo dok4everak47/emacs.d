@@ -272,14 +272,17 @@ let 动态绑定, :around advice 读取。")
                                      (yas--modes-to-activate))))
            (beg (save-excursion (skip-syntax-backward "w_") (point)))
            (prefix (buffer-substring-no-properties beg (point)))
+           ;; ⚠️ yas--table-hash 的结构是 KEY → NAMEHASH(name→template) 两层!
+           ;; 不能直接拿 value 当 template。用官方 API yas--fetch 取 (NAME . TEMPLATE)
+           ;; 列表, 构建 (key . template) 的 alist (之前把 NAMEHASH 当 template 传给
+           ;; yas--template-content 会 wrong-type-argument → Tab 展开失败)。
            (alist (cl-loop for table in tables
-                           append (let ((entries '()))
-                                   (maphash (lambda (key tpl)
-                                              (when (and (stringp key)
-                                                         (string-prefix-p prefix key))
-                                                (push (cons key tpl) entries)))
-                                            (yas--table-hash table))
-                                   entries))))
+                           append (cl-loop for key being the hash-keys of (yas--table-hash table)
+                                           when (and (stringp key)
+                                                     (string-prefix-p prefix key))
+                                           for nt = (car (yas--fetch table key))
+                                           when nt
+                                           collect (cons key (cdr nt))))))
       (when alist
         (list beg (point)
               (lambda (probe pred action)
