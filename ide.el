@@ -183,7 +183,21 @@
   (add-hook 'php-mode-hook #'eglot-ensure)
   (add-hook 'python-ts-mode-hook #'eglot-ensure)
   (add-hook 'js-ts-mode-hook #'eglot-ensure)
-  (add-hook 'typescript-ts-mode-hook #'eglot-ensure))
+  (add-hook 'typescript-ts-mode-hook #'eglot-ensure)
+
+  ;; 保存时自动格式化 (走 LSP: tsserver/pyright/phpactor 等的 formatting capability)
+  ;; 守卫: eglot 未连 (eglot--managed-mode 为 nil) 或 server 不支持
+  ;;   documentFormattingProvider 时 eglot-format-buffer 会抛 jsonrpc-error →
+  ;;   会阻断保存! condition-case 吞掉错误保证 C-x C-s 一定能保存。
+  ;; nix-mode 有独立的 my-nix-format-on-save (见 init-nix.el), 这里排除避免重复。
+  (defun my-eglot-format-on-save ()
+    "保存时用 eglot/LSP 格式化当前 buffer (仅当已连上且 server 支持)."
+    (when (and (bound-and-true-p eglot--managed-mode)
+               (not (derived-mode-p 'nix-mode)))
+      (condition-case err
+          (eglot-format-buffer)
+        (error (message "eglot-format-on-save 跳过 (保存不阻断): %S" err)))))
+  (add-hook 'before-save-hook #'my-eglot-format-on-save nil t))
 
 ;; ========== JS/TS 开发环境 (语法高亮 + 代码补全) ==========
 ;; 补全前端: corfu (init-completion.el 全局启用), 不再用 company。
