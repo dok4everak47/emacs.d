@@ -1,0 +1,4 @@
+# name: Async function
+# --
+async def ${1:name}(${2:params}):
+    $0

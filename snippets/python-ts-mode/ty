@@ -1,0 +1,4 @@
+# name: Typing imports
+# --
+from typing import ${1:List}, ${2:Optional}, ${3:Dict}
+$0

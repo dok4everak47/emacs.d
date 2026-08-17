@@ -1,0 +1,4 @@
+# name: Main guard
+# --
+if __name__ == '__main__':
+    $0

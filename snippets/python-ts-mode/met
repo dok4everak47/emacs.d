@@ -1,0 +1,4 @@
+# name: Method definition
+# --
+def ${1:method}(self, ${2:params}):
+    $0

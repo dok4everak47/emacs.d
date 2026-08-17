@@ -1,0 +1,3 @@
+# name: Lambda
+# --
+lambda ${1:args}: ${2:expr}

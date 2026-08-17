@@ -1,0 +1,3 @@
+# name: Assert
+# --
+assert ${1:condition}, '${2:message}'

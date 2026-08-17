@@ -1,0 +1,5 @@
+# name: Pathlib
+# --
+from pathlib import Path
+${1:path} = Path('${2:path}')
+$0

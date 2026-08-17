@@ -1,0 +1,9 @@
+# name: Property
+# --
+@property
+def ${1:prop}(self):
+    return ${2:value}
+
+@${1:prop}.setter
+def ${1:prop}(self, ${3:value}):
+    $0

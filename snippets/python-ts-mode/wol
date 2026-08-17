@@ -1,0 +1,4 @@
+# name: With open
+# --
+with open('${1:file}', '${2:r}') as ${3:f}:
+    $0

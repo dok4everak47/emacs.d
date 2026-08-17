@@ -1,0 +1,4 @@
+# name: Async with / for
+# --
+async with ${1:cm}:
+    $0

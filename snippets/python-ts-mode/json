@@ -1,0 +1,6 @@
+# name: json load/dump
+# --
+import json
+with open('${1:file}') as f:
+    data = json.load(f)
+$0

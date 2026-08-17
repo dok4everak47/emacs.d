@@ -1,0 +1,4 @@
+# name: For loop
+# --
+for ${1:item} in ${2:iterable}:
+    $0

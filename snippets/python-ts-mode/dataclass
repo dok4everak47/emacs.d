@@ -1,0 +1,6 @@
+# name: Dataclass
+# --
+@dataclass
+class ${1:Name}:
+    ${2:field}: ${3:int}
+    $0

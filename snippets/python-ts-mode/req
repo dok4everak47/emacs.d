@@ -1,0 +1,6 @@
+# name: Requests get
+# --
+import requests
+resp = requests.get('${1:url}')
+resp.raise_for_status()
+$0

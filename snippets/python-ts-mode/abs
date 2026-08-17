@@ -1,0 +1,8 @@
+# name: Abstract method
+# --
+from abc import ABC, abstractmethod
+
+class ${1:Name}(${2:ABC}):
+    @abstractmethod
+    def ${3:method}(self, ${4:params}):
+        $0

@@ -1,0 +1,3 @@
+# name: Dict type
+# --
+Dict[${1:Key}, ${2:Value}]

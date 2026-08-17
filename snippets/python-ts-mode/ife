@@ -1,0 +1,8 @@
+# name: If / elif / else
+# --
+if ${1:condition}:
+    $0
+elif ${2:condition2}:
+    ${3:pass}
+else:
+    ${4:pass}

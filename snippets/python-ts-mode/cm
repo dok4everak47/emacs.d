@@ -1,0 +1,5 @@
+# name: Class method
+# --
+@classmethod
+def ${1:name}(cls, ${2:params}):
+    $0

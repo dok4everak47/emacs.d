@@ -1,0 +1,5 @@
+# name: Decorator
+# --
+@${1:decorator}
+def ${2:name}(${3:params}):
+    $0

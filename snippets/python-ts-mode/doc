@@ -1,0 +1,3 @@
+# name: Docstring
+# --
+\"\"\"${1:Docstring}\"\"\"

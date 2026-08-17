@@ -1,0 +1,6 @@
+# name: Try / finally
+# --
+try:
+    $0
+finally:
+    ${1:pass}

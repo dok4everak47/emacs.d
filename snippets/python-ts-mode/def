@@ -1,0 +1,4 @@
+# name: Function definition
+# --
+def ${1:name}(${2:params}):
+    $0
