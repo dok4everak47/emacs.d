@@ -1,0 +1,3 @@
+# name: Await
+# --
+await ${1:promise}

@@ -1,0 +1,5 @@
+# name: Constructor param props
+# --
+constructor(private ${1:prop}: ${2:Type}) {
+  $0
+}

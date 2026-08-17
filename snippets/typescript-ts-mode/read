@@ -1,0 +1,3 @@
+# name: Readonly property
+# --
+readonly ${1:prop}: ${2:Type}

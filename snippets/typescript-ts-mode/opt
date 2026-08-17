@@ -1,0 +1,3 @@
+# name: Optional property
+# --
+${1:prop}?: ${2:Type}

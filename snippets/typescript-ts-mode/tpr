@@ -1,0 +1,3 @@
+# name: Type alias
+# --
+type ${1:Name} = ${2:Type}

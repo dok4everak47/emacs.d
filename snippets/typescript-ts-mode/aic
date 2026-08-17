@@ -1,0 +1,5 @@
+# name: addEventListener
+# --
+${1:el}.addEventListener('${2:click}', (e) => {
+  $0
+})

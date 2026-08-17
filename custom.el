@@ -13,7 +13,9 @@
 	  dired-sidebar dired-subtree diredfl doom-themes embark
 	  embark-consult envrc exec-path-from-shell impatient-mode
 	  magit marginalia markdown-mode markdown-preview-mode meow
-	  mood-line move-text nerd-icons nerd-icons-dired olivetti
+	  mood-line move-text nerd-icons nerd-icons-corfu nerd-icons-dired
+	  lsp-mode lsp-pyright lsp-ui
+	  olivetti
 	  orderless org-gcal org-modern pangu-spacing php-mode popper
 	  projectile racket-mode simple-httpd super-save surround
 	  symbol-overlay treesit-auto vertico vterm vundo which-key

@@ -1,0 +1,5 @@
+# name: Getter
+# --
+get ${1:prop}() {
+  return ${2:value}
+}

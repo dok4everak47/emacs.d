@@ -1,0 +1,8 @@
+# name: Getter and setter
+# --
+get ${1:prop}() {
+  return ${2:value}
+}
+set ${1:prop}(${3:value}) {
+  $0
+}

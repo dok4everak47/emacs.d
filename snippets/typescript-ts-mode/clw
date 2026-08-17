@@ -1,0 +1,3 @@
+# name: console.warn
+# --
+console.warn(${1:warning})

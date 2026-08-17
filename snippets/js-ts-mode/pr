@@ -1,0 +1,5 @@
+# name: Promise constructor
+# --
+new Promise((resolve, reject) => {
+  $0
+})

@@ -1,0 +1,3 @@
+# name: Pick
+# --
+Pick<${1:Type}, '${2:K}'>

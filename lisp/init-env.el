@@ -56,7 +56,7 @@
   :ensure t
   :init
   (yas-global-mode 1)
-  :hook (prog-mode . yas-minor-mode)      ; 强制编程 buffer 启用 (eglot snippet 展开依赖)
+  :hook (prog-mode . yas-minor-mode)      ; 强制编程 buffer 启用 (LSP snippet 展开依赖)
   :custom
   (yas-triggers-in-field t)                ; 嵌套 snippet 允许
   (yas-use-menu nil)                       ; 隐藏菜单栏 YASnippet 菜单 (只留快捷键)

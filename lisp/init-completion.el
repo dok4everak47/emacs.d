@@ -180,15 +180,15 @@ let 动态绑定, :around advice 读取。")
   (embark-collect-mode . consult-preview-at-point-mode))
 
 ;; ---------- corfu: 代码补全弹窗 ----------
-;; 轻量, 基于 child frame, 原生消费 eglot 的 completion-at-point。
-;; CAPF 顺序由 eglot 自动注册, cape (dabbrev/file/dict) 在后兜底。
+;; 轻量, 基于 child frame, 消费 LSP (lsp-mode/eglot) 的 CAPF 补全。
+;; CAPF 顺序由 lsp-completion-mode/eglot 自动注册, cape 在后兜底。
 (use-package corfu
   :ensure t
   :init
   (global-corfu-mode 1)
   :custom
   (corfu-auto t)                           ; 自动弹出
-  (corfu-auto-delay 0.1)                   ; 短延迟, 避开 eglot LSP 网络抖动
+  (corfu-auto-delay 0.1)                   ; 短延迟, 避开 LSP 网络抖动
   (corfu-auto-prefix 1)                    ; 1 字符即触发 (支持 obj. 点访问)
   (corfu-cycle t)                          ; 候选循环
   (corfu-quit-no-match 'separator)         ; 无匹配按分隔符收菜单
@@ -199,8 +199,35 @@ let 动态绑定, :around advice 读取。")
   ;; Tab 接受补全
   (define-key corfu-map (kbd "TAB") #'corfu-insert)
   (define-key corfu-map (kbd "<tab>") #'corfu-insert)
-  ;; RET 不抢 (避免误提交, eglot 自动补全时常用 Tab 接受)
-  (define-key corfu-map (kbd "<return>") nil))
+  ;; RET 不抢 (避免误提交, LSP 自动补全时常用 Tab 接受)
+  (define-key corfu-map (kbd "<return>") nil)
+
+  ;; ---- 智能增强 (均为 corfu 自带扩展, 无需额外装包) ----
+  ;; 1) 候选文档预览: corfu-echo 在底部 echo 区显示当前候选的签名/文档,
+  ;;    → 接近 VS Code 的"列表+文档"观感, 但不弹第二个框 (popupinfo 会弹独立
+  ;;    子窗 = 用户不想要的"两个框", 已弃用)。
+  (corfu-echo-mode 1)
+  (setq corfu-echo-delay '(0.5 . 1.0))   ; 选中候选后 0.5s 显示文档, 停留 1s
+  ;; 2) 按使用历史排序候选 (常选的靠前), 越用越贴合个人习惯。
+  ;;    历史随 savehist 持久化 (corfu-history 自动加入 savehist 变量)。
+  (corfu-history-mode 1)
+  ;; 3) 候选前显示数字索引, M-1..M-9 直接插入对应项 (手不用离开主键区选)
+  (corfu-indexed-mode 1))
+
+;; ---------- 补全候选类型图标 (nerd-icons-corfu) ----------
+;; 依赖 nerd-icons (ide.el 已装, dashboard/dired 在用)。在 corfu 候选左侧
+;; margin 渲染类型图标: ƒ 函数 / 𝘢 变量 / ⬡ 属性 / 📦 模块 / ▤ 类 / 🜲 接口…
+;; 数据来源是 LSP 注释里带的 :company-kind (tsserver 的 LSP CompletionItem
+;; kind, lsp-mode/eglot 都会翻译成 function/method/module/property 等符号)。
+;; cape 等本地兜底无 kind 时显示 ? (可接受, 兜底场景本来就没语义信息)。
+;; ⚠️ corfu 2.x 不用 minor mode, 只需把 formatter 加进 corfu-margin-formatters
+;; 变量 (corfu--affixate 渲染 margin 时跑 hook); 旧教程里的
+;; nerd-icons-corfu-mode 已不存在, 照旧教程写会 void-function。
+(use-package nerd-icons-corfu
+  :ensure t
+  :after corfu
+  :config
+  (add-to-list 'corfu-margin-formatters #'nerd-icons-corfu-formatter))
 
 ;; ---------- 终端 (-nw) 下的 corfu 弹窗提示 ----------
 ;; corfu 浮窗依赖 child frame, 纯终端不支持 (corfu--popup-support-p 为 nil):
@@ -217,6 +244,78 @@ let 动态绑定, :around advice 读取。")
       (message "提示: 终端模式下 corfu 补全浮窗不可用 (需 child frame)。写代码建议用 GUI Emacs; 终端内可试试 TAB 看内置候选列表。")))
   (add-hook 'prog-mode-hook #'my-corfu-tty-warn))
 
+;; ---------- yasnippet 语句模板补全 (VS Code 式 snippet) ----------
+;; 输入触发词 (try / cl / forof / exp / fn ...) 时, 补全列表出现可一键展开的
+;; 语句模板 (与 VS Code 内置 snippets 同款)。语言文件夹: ~/.emacs.d/snippets/
+;; (js-ts-mode 已建 15 个高频模板, tsx/typescript-ts-mode 用符号链接共享)。
+;;
+;; 与 lsp 补全共存设计 (corfu 每次只消费一个 CAPF 源):
+;;   - my-capf-yasnippet 返回 :exclusive 'no 且排在 lsp 之前
+;;   - 命中 snippet 触发词 → 只弹模板 (VS Code 输入 try/cl 同样优先 snippet);
+;;   - 没有匹配 → 返回 nil, lsp-completion-at-point 正常接管语义补全。
+;; 因此需要 lsp 连接后把 yasnippet 重新提到最前 (lsp-completion-mode 会用
+;; add-to-list 把 lsp-completion-at-point 放到列表头部)。
+
+(defvar my-capf-yas--loaded nil
+  "my-capf-yasnippet 首次调用是否已完成过一次 yas-reload-all.")
+
+(defun my-capf-yasnippet ()
+  "yasnippet 片段补全: key 前缀匹配当前 mode 的 snippet 表, 选中即展开语句模板."
+  (when (and (bound-and-true-p yas-minor-mode)
+             (fboundp 'yas--get-snippet-tables))
+    ;; 首次调用时全量加载 snippet 表 (yas-reload-all t = no-jit, 同步建表;
+    ;; 默认 JIT 在批量环境下可能不触发, 导致表为空)
+    (unless my-capf-yas--loaded
+      (yas-reload-all t)
+      (setq my-capf-yas--loaded t))
+    (let* ((tables (delq nil (mapcar (lambda (m) (gethash m yas--tables))
+                                     (yas--modes-to-activate))))
+           (beg (save-excursion (skip-syntax-backward "w_") (point)))
+           (prefix (buffer-substring-no-properties beg (point)))
+           (alist (cl-loop for table in tables
+                           append (let ((entries '()))
+                                   (maphash (lambda (key tpl)
+                                              (when (and (stringp key)
+                                                         (string-prefix-p prefix key))
+                                                (push (cons key tpl) entries)))
+                                            (yas--table-hash table))
+                                   entries))))
+      (when alist
+        (list beg (point)
+              (lambda (probe pred action)
+                (complete-with-action action (mapcar #'car alist) probe pred))
+              :annotation-function
+              (lambda (cand)
+                (let ((tpl (cdr (assoc cand alist))))
+                  (when tpl
+                    (concat "  " (propertize (or (yas--template-name tpl) "")
+                                              'face 'font-lock-comment-face)))))
+              :exit-function
+              (lambda (cand _status)
+                (let ((tpl (cdr (assoc cand alist))))
+                  (when tpl
+                    ;; 删除已输入的触发词 (key), 再展开模板真身
+                    (delete-region beg (point))
+                    (yas-expand-snippet (yas--template-content tpl))))))))))
+
+;; 所有编程 buffer 的 CAPF 最前插入 yasnippet (无 LSP 场景也能用)
+(dolist (fn '(my-capf-yasnippet))
+  (unless (member fn (default-value 'completion-at-point-functions))
+    (setq-default completion-at-point-functions
+                  (cons fn (default-value 'completion-at-point-functions)))))
+
+;; lsp 连接后 (lsp-completion-mode 开启, lsp 被 add-to-list 到头部) 重排:
+;; 把 my-capf-yasnippet 提到 lsp 之前, 保证 snippet 触发词优先
+(defun my-capf-yasnippet-prioritize ()
+  "lsp-completion-mode 开启后把 yasnippet CAPF 提到 lsp 之前."
+  (when (and (bound-and-true-p yas-minor-mode)
+             (member 'lsp-completion-at-point completion-at-point-functions))
+    (setq-local completion-at-point-functions
+                (cons 'my-capf-yasnippet
+                      (delq 'my-capf-yasnippet
+                            completion-at-point-functions)))))
+(add-hook 'lsp-completion-mode-hook #'my-capf-yasnippet-prioritize)
+
 ;; cape: corfu 的额外补全后端 (dictionary/abbrev/file/dabbrev)
 ;; ⚠️ 坑: 不能用 (add-to-list 'completion-at-point-functions ...)!
 ;; 配置加载时 current-buffer 是 *scratch* (emacs-lisp-mode), 它的
@@ -231,7 +330,14 @@ let 动态绑定, :around advice 读取。")
   (dolist (fn '(cape-dabbrev cape-file cape-dict))
     (unless (member fn (default-value 'completion-at-point-functions))
       (setq-default completion-at-point-functions
-                    (cons fn (default-value 'completion-at-point-functions))))))
+                    (cons fn (default-value 'completion-at-point-functions)))))
+  ;; 额外智能后端 (均 autoload, 仅符号入列不强制加载):
+  ;;  - cape-keyword: 当前 major-mode 的语言关键字 (if/function/const...)
+  ;;  - cape-history: 本会话/本文件输入过的词组 (重复输入更快)
+  (dolist (fn '(cape-keyword cape-history))
+    (unless (member fn (default-value 'completion-at-point-functions))
+      (setq-default completion-at-point-functions
+                    (append (default-value 'completion-at-point-functions) (list fn))))))
 
 ;; minibuffer 里也用 corfu (M-x 补全时)
 ;; ⚠️ 坑: corfu 激活后劫持 RET (corfu-insert), yes/no 确认框 (yes-or-no-p)

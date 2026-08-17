@@ -1,0 +1,5 @@
+# name: setInterval
+# --
+setInterval(() => {
+  $0
+}, ${1:1000})

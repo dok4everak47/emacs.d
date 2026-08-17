@@ -1,0 +1,5 @@
+# name: Interface
+# --
+interface ${1:Name} {
+  ${2:prop}: ${3:Type}
+}

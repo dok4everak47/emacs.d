@@ -1,0 +1,3 @@
+# name: Throw error
+# --
+throw new Error('${1:message}')

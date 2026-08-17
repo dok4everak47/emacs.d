@@ -1,0 +1,5 @@
+# name: Object literal
+# --
+const ${1:obj} = {
+  ${2:key}: ${3:value}
+}

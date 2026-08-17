@@ -83,5 +83,49 @@
   (highlight-parentheses-highlight-adjacent t) ; 同时高亮相邻括号 (同 show-paren)
   (highlight-parentheses-delay 0.05))          ; 响应快一点
 
+;; ---------- 配对括号一键删除 (VS Code 行为) ----------
+;; 光标在空括号对/空引号对中间 `(|) [|] {|} "|"` 时, 按退格或 Delete,
+;; 一次删除整对 (VS Code 默认行为), 否则走原有删除逻辑。
+;; 实现位置: 所有退格入口 (DEL / <backspace> / <delete> / meow 的 C-h 退格,
+;; 以及 init-simple-indent.el 的 my-simple-indent-backspace 内部) 最终都调
+;; delete-backward-char; 正向删除走 delete-forward-char。在这两个底层函数上
+;; 挂 :around advice 即全覆盖, 无需逐个键位绑定。
+
+(defconst my-paren-pair-table
+  '((?\( . ?\)) (?\[ . ?\]) (?\{ . ?\})
+    (?\" . ?\") (?\' . ?\') (?\` . ?\`))
+  "配对字符表: 开字符 → 闭字符。引号也成对删 (空字符串 \"\" 内退格删整对)。")
+
+(defun my-delete-pair-in-front-p ()
+  "点前后各一个字符恰好是一对空括号/空引号 (形如 (|) [|] {|} \"|\")."
+  (let ((open (char-before))
+        (close (char-after)))
+    (and open close
+         (eq close (cdr (assq open my-paren-pair-table))))))
+
+(defun my-delete-pair-char ()
+  "删除光标两侧的一对配对字符 (开+闭), 光标位置不变。"
+  (delete-char -1)
+  (delete-char 1))
+
+(defun my-delete-pair-backward-advice (orig &rest args)
+  "退格: 点在空配对内时删整对; 否则走原逻辑 (N>1 的块删除不干预)."
+  (if (and (= (or (car args) 1) 1)  ; 单字符退格才检查配对 (缩进块删除 N=2 不干预)
+           (not (cdr args))
+           (my-delete-pair-in-front-p))
+      (my-delete-pair-char)
+    (apply orig args)))
+
+(defun my-delete-pair-forward-advice (orig &rest args)
+  "Delete 键: 点在空配对内时删整对; 否则走原逻辑."
+  (if (and (= (or (car args) 1) 1)
+           (not (cdr args))
+           (my-delete-pair-in-front-p))
+      (my-delete-pair-char)
+    (apply orig args)))
+
+(advice-add 'delete-backward-char :around #'my-delete-pair-backward-advice)
+(advice-add 'delete-forward-char :around #'my-delete-pair-forward-advice)
+
 (provide 'init-paren)
 ;;; init-paren.el ends here

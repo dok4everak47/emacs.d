@@ -1,0 +1,5 @@
+# name: Setter
+# --
+set ${1:prop}(${2:value}) {
+  $0
+}

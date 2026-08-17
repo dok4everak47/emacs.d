@@ -32,6 +32,10 @@ request/
 .org-generic-id-locations
 servers.el
 
+# lsp-mode 会话文件 / transient 历史 (本地运行时数据)
+.lsp-session-v1
+transient/
+
 # projectile 运行数据 (项目历史/收藏缓存, 每台机器不同)
 projectile-*.eld
 

@@ -1,0 +1,5 @@
+# name: For...of loop
+# --
+for (const ${1:item} of ${2:array}) {
+  $0
+}

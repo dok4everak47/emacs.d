@@ -1,0 +1,5 @@
+# name: Case
+# --
+case ${1:value}:
+  $0
+  break

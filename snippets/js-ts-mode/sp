@@ -1,0 +1,3 @@
+# name: Spread
+# --
+...${1:iterable}

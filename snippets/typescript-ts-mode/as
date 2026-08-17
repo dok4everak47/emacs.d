@@ -1,0 +1,3 @@
+# name: Type assertion
+# --
+${1:value} as ${2:Type}

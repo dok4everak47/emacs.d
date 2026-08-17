@@ -1,0 +1,3 @@
+# name: Rest params
+# --
+...${1:args}

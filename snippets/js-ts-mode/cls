@@ -1,0 +1,7 @@
+# name: Class
+# --
+class ${1:Name} {
+  constructor(${2:params}) {
+    $0
+  }
+}

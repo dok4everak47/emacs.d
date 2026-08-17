@@ -1,0 +1,3 @@
+# name: Keyof
+# --
+keyof ${1:Type}

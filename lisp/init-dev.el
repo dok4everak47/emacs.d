@@ -19,7 +19,8 @@
 
 ;; ---------- flymake: 实时语法检查 ----------
 ;; Emacs 29+ 内置, 不需要额外安装包
-;; 配合 eglot (已在 ide.el 中配置) 使用时, LSP 诊断自动走 flymake
+;; 配合 lsp-mode (已在 ide.el 中配置) 使用时, LSP 诊断自动走 flymake
+;; (lsp-diagnostics-provider 设为 :flymake)
 (use-package flymake
   :ensure nil                                 ; 内置包, 不从 ELPA 安装
   :bind
@@ -32,7 +33,7 @@
   (flymake-margin-indicator-position 'left-margin) ; margin 也显示标记 (非 nil 即启用, 无 flymake-margin-enabled 变量)
   :config
   ;; 编程语言 major-mode 启动时自动开 flymake
-  ;; (eglot 启动时会自动启用 flymake, 这里兜底非 LSP 场景)
+  ;; (lsp-mode 启动时会自动启用 flymake, 这里兜底非 LSP 场景)
   (add-hook 'prog-mode-hook #'flymake-mode))
 
 ;; ---------- flymake 错误列表美化 ----------

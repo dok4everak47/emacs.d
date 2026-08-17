@@ -1,0 +1,5 @@
+# name: Generic function
+# --
+function ${1:name}<${2:T}>(${3:arg}: ${2:T}): ${4:Type} {
+  $0
+}

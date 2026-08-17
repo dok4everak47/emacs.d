@@ -1,0 +1,5 @@
+# name: setTimeout
+# --
+setTimeout(() => {
+  $0
+}, ${1:1000})

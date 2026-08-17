@@ -1,0 +1,5 @@
+# name: Generic interface
+# --
+interface ${1:Name}<${2:T}> {
+  ${3:prop}: ${2:T}
+}

@@ -156,52 +156,138 @@
 ;; ---------- 隐藏工具条 (更像 VSCode; 需要时 M-x tool-bar-mode 可开回) ----------
 (tool-bar-mode -1)
 
-;; ---------- LSP (内置 eglot; PHP/Python/JS 自动启动, 其他语言手动) ----------
-;; PHP: php-mode + phpactor (nix devShell)
-;; Python: python-ts-mode + pyright; JS/TS: js-ts-mode + typescript-language-server
-;; 说明: php-ts-mode (tree-sitter 版) 在 Emacs 30.2 要求 6 个 grammar
-;; (php/phpdoc/html/js/jsdoc/css), 新版 tree-sitter-php 已合并 phpdoc/jsdoc,
-;; 导致缺 grammar 拒绝启动, 故退回成熟的 php-mode。
-;; js-ts-mode/python-ts-mode 是软检查 (when treesit-ready-p), 无此问题。
-;; 其他语言 (eglot-ensure 找不到 server 会报错) 仍用 C-c e e 手动启动
-(use-package eglot
-  :bind (("C-c e e" . eglot))
+;; ---------- LSP (lsp-mode + lsp-ui; PHP/Python/JS 自动启动) ----------
+;; 2026-08-17 从 eglot 整体切换: lsp-mode + lsp-ui 提供更完整的 IDE 能力 —
+;; 悬浮文档 lsp-ui-doc、行尾诊断侧栏 lsp-ui-sideline、peek 跳转 lsp-ui-peek、
+;; headerline 面包屑、code lens, 且生态更活跃 (lsp-treemacs 等可选)。
+;; 补全仍走 CAPF: lsp-completion-mode 会把 lsp-completion-at-point 加进
+;; completion-at-point-functions 首位, corfu 前端与 cape 兜底不用动
+;; (init-completion.el)。
+;; ⚠️ nix-mode 继续用内置 eglot + nixd (init-nix.el 自带注册, 与 lsp-mode 共存)。
+;;
+;; 键位 (沿用原 eglot 的 C-c e 前缀, 肌肉记忆不变):
+;;   C-c e e  启动/连接 LSP            C-c e a  code action
+;;   C-c e f  光标处 code action (quickfix)  C-c e o  organize imports
+;;   C-c e r  rename                     C-c e d  声明处 (interface/类型)
+;;   C-c e i  implementation            C-c e t  type definition
+;;   C-c e R  重启 server (改 lsp-* 选项后生效)
+;;   C-c e l  开启/关闭 IO 日志         C-c e L  查看 *lsp-log* (排障)
+;;   M-. / M-? 仍是 xref 全局键 (lsp-mode 自动接入 definitions/references)
+(use-package lsp-mode
+  :bind (("C-c e e" . lsp)
+         ("C-c e a" . lsp-execute-code-action)
+         ("C-c e f" . lsp-code-actions-at-point)
+         ("C-c e o" . lsp-organize-imports)
+         ("C-c e r" . lsp-rename)
+         ("C-c e d" . lsp-find-declaration)
+         ("C-c e i" . lsp-find-implementation)
+         ("C-c e t" . lsp-find-type-definition)
+         ("C-c e R" . lsp-workspace-restart)
+         ("C-c e l" . lsp-toggle-trace-io)
+         ("C-c e L" . lsp-workspace-show-log))
+  :hook ((php-mode . lsp-deferred)
+         (python-mode . lsp-deferred)
+         (python-ts-mode . lsp-deferred)
+         (js-ts-mode . lsp-deferred)
+         (typescript-ts-mode . lsp-deferred)
+         (tsx-ts-mode . lsp-deferred))
+  :custom
+  (lsp-idle-delay 0.2)                 ; 默认 0.5s idle, 调短更跟手
+  (lsp-auto-guess-root t)              ; 用 projectile/project 自动猜项目根 (省去首次打开时的 import 交互)
+  (lsp-headerline-breadcrumb-enable t) ; buffer 顶部面包屑路径 (类 VSCode)
+  (lsp-diagnostics-provider :flymake)  ; 诊断走 flymake (init-dev.el 的 M-g n/p 绑定)
+  (lsp-enable-snippet t)               ; TS auto-import 等 snippet 补全 (yas 已装)
+  ;; ⚠️ 必须 :none 不能 :capf! lsp-completion-provider 只有 :capf/:none 两个值,
+  ;; :capf 是 "Use company-capf" —— lsp-completion-mode 源码 (lsp-completion.el)
+  ;; 里只要 provider 不是 :none 且 company 可加载 (autoload 让 fboundp 恒真),
+  ;; 就会自动启用 company-mode + company-capf → 双框同屏
+  ;; (company 的 cape-keyword 框 + corfu 的 LSP 框, 就是输入 expo 时的现象)。
+  ;; :none = 只把 lsp-completion-at-point 挂进 completion-at-point-functions,
+  ;; 不启用任何自带 UI —— 这正是 corfu 用户的正确选择。
+  (lsp-completion-provider :none)
+  (lsp-completion-enable t)
+  (lsp-inlay-hint-enable t)            ; 内联提示 (参数名/变量类型/返回类型)
+  (lsp-format-buffer-on-save t)        ; 保存自动格式化 (lsp-mode 自带 server 能力检查)
+  (lsp-log-io nil)                     ; 平时不记全文 IO; 排障时 C-c e l 临时打开
   :config
-  (setq eglot-autoshutdown t
-        eglot-confirm-server-edits nil)
-  ;; 备注: typescript-language-server/pyright/phpactor 用裸命令名,
-  ;; eglot 走 executable-find 查 PATH; ~/.local/bin 已在 PATH, 无需追加路径。
-  ;; LSP server 注册 (eglot 默认不知道这些 server)
-  (with-eval-after-load 'eglot
-    (dolist (entry '((php-mode . ("phpactor" "language-server"))
-                     (python-ts-mode . ("pyright" "language-server"))
-                     (python-mode . ("pyright" "language-server"))
-                     (js-ts-mode . ("typescript-language-server" "--stdio"))
-                     (typescript-ts-mode . ("typescript-language-server" "--stdio"))))
-      (add-to-list 'eglot-server-programs entry)))
-  ;; 自动启动 eglot (LSP 只在 nix devShell 里, 找不到时 eglot-ensure 会提示)
-  (add-hook 'php-mode-hook #'eglot-ensure)
-  (add-hook 'python-ts-mode-hook #'eglot-ensure)
-  (add-hook 'js-ts-mode-hook #'eglot-ensure)
-  (add-hook 'typescript-ts-mode-hook #'eglot-ensure)
+  ;; 先加载 ts-ls 客户端, 再 setq 它的 defcustom (顺序反过来会被
+  ;; defcustom 的默认值覆盖):
+  (require 'lsp-javascript)
+  ;; ---- tsserver 调优 (等价于旧 eglot 的 initializationOptions) ----
+  ;; ⚠️ 全局 typescript@7.x (tsgo native 版) 没有 tsserver.js, lsp-mode 的
+  ;; ts-ls 客户端解析 :system "tsserver" 找不到会直接报 "The package
+  ;; typescript is not installed" → 连接失败。已在本机 ~/.local/bin/tsserver
+  ;; 建了符号链接 → ~/.local/lib/tsls-deps/... (typescript@5.9.3, 自带真实
+  ;; tsserver.js; workspace 有自己的 typescript 时仍优先用它)。
+  ;; fallbackPath 保留作双保险 (typescript-language-server 在 path 无效/
+  ;; 缺失时用它兜底)。
+  ;; 变量名对应 lsp-javascript.el 的 ts-ls 客户端:
+  ;;   lsp-clients-typescript-tsserver  → 初始化选项的 :tsserver {...}
+  ;;   lsp-clients-typescript-preferences → 初始化选项的 :preferences {...}
+  (setq lsp-clients-typescript-tsserver
+        (list :fallbackPath
+              "/Users/dok4ever/.local/lib/tsls-deps/node_modules/typescript/lib/tsserver.js")
+        lsp-clients-typescript-preferences
+        (list :completeFunctionCalls t            ; 补全函数自动带括号 foo( )
+              :includeAutomaticOptionalChainCompletions t ; 可选链 ?. 自动补全
+              :includeCompletionsForModuleExports t       ; 模块导出/import 自动补全
+              :includeCompletionsWithInsertText t
+              :includeCompletionsWithSnippetText t
+              :includeCompletionsWithClassMemberSnippets t
+              :includeCompletionsWithObjectLiteralMethodSnippets t
+              :allowIncompleteCompletions t
+              ;; inlay hints 偏好 (配合 lsp-inlay-hint-enable)
+              :includeInlayParameterNameHints "literals"
+              :includeInlayParameterNameHintsWhenArgumentMatchesName t
+              :includeInlayFunctionParameterTypeHints t
+              :includeInlayVariableTypeHints t
+              :includeInlayVariableTypeHintsWhenTypeMatchesName t
+              :includeInlayFunctionLikeReturnTypeHints t
+              :includeInlayPropertyDeclarationTypeHints t
+              :includeInlayEnumMemberValueHints t)))
 
-  ;; 保存时自动格式化 (走 LSP: tsserver/pyright/phpactor 等的 formatting capability)
-  ;; 守卫: eglot 未连 (eglot--managed-mode 为 nil) 或 server 不支持
-  ;;   documentFormattingProvider 时 eglot-format-buffer 会抛 jsonrpc-error →
-  ;;   会阻断保存! condition-case 吞掉错误保证 C-x C-s 一定能保存。
-  ;; nix-mode 有独立的 my-nix-format-on-save (见 init-nix.el), 这里排除避免重复。
-  (defun my-eglot-format-on-save ()
-    "保存时用 eglot/LSP 格式化当前 buffer (仅当已连上且 server 支持)."
-    (when (and (bound-and-true-p eglot--managed-mode)
-               (not (derived-mode-p 'nix-mode)))
-      (condition-case err
-          (eglot-format-buffer)
-        (error (message "eglot-format-on-save 跳过 (保存不阻断): %S" err)))))
-  (add-hook 'before-save-hook #'my-eglot-format-on-save nil t))
+;; lsp-ui: 默认全部视觉层关闭, 屏幕只留 corfu 补全列表一个框
+;; 各层用途说明 (需要时可单独打开, 但都会在屏幕上产生额外框/条):
+;;   lsp-ui-doc      悬浮文档 (鼠标/光标悬停弹框)     → 关, 改用 C-c e h 按需看
+;;   lsp-ui-sideline 行尾侧栏 (每次按键刷新当前行符号/诊断信息框) → 关
+;;   lsp-ui-imenu    接管 imenu 为侧边树              → 关, 保留 consult-imenu
+;;   lsp-ui-peek     跳转参考时的 peek 预览窗         → 开 (仅在 C-c e i / M-? 时出现)
+;; ⚠️ 双框根源: 开启了 lsp-ui-doc / lsp-ui-sideline 后, 补全时它们会与
+;; corfu 候选列表同时出现, 视觉上就是"两个补全框"。全部禁用后可确保唯一。
+(use-package lsp-ui
+  :ensure t
+  :after lsp-mode
+  :bind (("C-c e h" . lsp-ui-doc-glance))  ; 按需看文档 (不依赖 doc-enable)
+  :hook (lsp-mode . lsp-ui-mode)
+  :custom
+  (lsp-ui-doc-enable nil)
+  (lsp-ui-doc-show-with-mouse nil)   ; 双保险 (即便 doc 被打开也不自动弹)
+  (lsp-ui-doc-show-with-cursor nil)
+  (lsp-ui-sideline-enable nil)
+  (lsp-ui-imenu-enable nil)
+  (lsp-ui-peek-enable t)
+  :config
+  ;; 终端 (-nw) 没有 child frame, 更没必要开这些
+  (unless (display-graphic-p)
+    (setq lsp-ui-doc-enable nil
+          lsp-ui-sideline-enable nil)))
 
+;; python 用 pyright (与旧 eglot 一致; lsp-mode 内置的 pylsp 是兜底)。
+;; lsp-pyright 安装后自动注册 pyright 客户端 (lsp-client-packages 含 lsp-pyright),
+;; 优先级高于 pylsp, 无需额外 hook。
+(use-package lsp-pyright
+  :ensure t
+  :after lsp-mode)
+
+;; 旧 eglot 配置 (2026-08-17 归档, 架构等价迁移到上方 lsp-* 配置):
+;; - 键位 C-c e e/a/f/o/r/d/i/t 语义不变, 映射到对应 lsp-* 命令
+;; - tsserver initializationOptions → lsp-clients-typescript-tsserver / -preferences
+;; - 保存格式化 → lsp-format-buffer-on-save (旧 my-eglot-format-on-save 已删)
+;; - 排障 → lsp-log-io + C-c e l/L (旧 eglot-events-buffer-config 已删)
+;; - nix-mode 的 eglot 注册在 init-nix.el, 不受本次切换影响
 ;; ========== JS/TS 开发环境 (语法高亮 + 代码补全) ==========
 ;; 补全前端: corfu (init-completion.el 全局启用), 不再用 company。
-;; eglot 的 LSP 补全自动注册到 completion-at-point-functions,
+;; lsp-mode 的 LSP 补全自动注册到 completion-at-point-functions (首位),
 ;; corfu 直接消费 CAPF; cape 提供 dabbrev/file/dict 兜底 (init-completion.el)。
 
 ;; ---- 1. (旧) Company 补全框架 ---- 已禁用, 改用 corfu + eglot CAPF
@@ -244,21 +330,21 @@
 (add-to-list 'auto-mode-alist '("\\.cjs\\'" . js-ts-mode))
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . js-ts-mode))
 (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode))
-(add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-ts-mode))
+;; .tsx 必须用 tsx-ts-mode (treesit 的 tsx grammar):
+;; 之前映射到 typescript-ts-mode 会按纯 TS 解析, JSX 标签/属性解析错位,
+;; 补全和缩进都会异常。lsp-mode 的 ts-ls 客户端自带 tsx-ts-mode 映射,
+;; 无需额外注册 server。
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . tsx-ts-mode))
 (add-to-list 'auto-mode-alist '("\\.json\\'" . json-ts-mode))
 
-;; JS/TS 文件钩子: eglot LSP + eldoc (corfu 由 init-completion.el 全局启用)
-(add-hook 'js-ts-mode-hook
-          (lambda ()
-            (eldoc-mode 1)
-            (when (fboundp 'eglot-ensure)
-              (eglot-ensure))))
-
-(add-hook 'typescript-ts-mode-hook
-          (lambda ()
-            (eldoc-mode 1)
-            (when (fboundp 'eglot-ensure)
-              (eglot-ensure))))
+;; JS/TS 文件处理已由上方 lsp-mode :hook 接管:
+;;   js-ts-mode / typescript-ts-mode / tsx-ts-mode → lsp-deferred 自动连接
+;; LSP 补全由 lsp-completion-mode 自动挂到 CAPF 首位 (lsp-completion.el 里
+;;   add-to-list completion-at-point-functions #'lsp-completion-at-point),
+;;   corfu 直接消费 — 旧 eglot 的 my-js-ts-eglot-capf-first 已删, 无需手动提位。
+;; inlay hints 由 lsp-inlay-hint-enable 全局开启, 不再逐 buffer 手动开;
+;; lsp-mode 的 lsp-inlay-hint-face 默认继承 font-lock-comment-face (淡色),
+;; 旧 eglot 的 face 微调也已删。
 
 ;; ---- 4. 语法高亮增强 (高亮 TODO/FIXME/NOTE 等标记) ----
 (use-package hl-todo
@@ -289,8 +375,8 @@
     ["刷新文件树" revert-buffer t]
     ["项目内找文件" my-consult-projectile-find-file t]
     ["切换项目" projectile-switch-project t]
-    ["启动 LSP" eglot t]
-    ["关闭 LSP" eglot-shutdown t]))
+    ["启动 LSP" lsp t]
+    ["关闭 LSP" lsp-shutdown-workspace t]))
 
 ;; ---------- Dashboard 四模块卡片化 (svg-lib + :align-to 动态居中) ----------
 (defconst my-dash-card-width 28 "Uniform content width in chars per card row.")

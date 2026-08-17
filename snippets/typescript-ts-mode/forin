@@ -1,0 +1,5 @@
+# name: For...in loop
+# --
+for (const ${1:key} in ${2:object}) {
+  $0
+}

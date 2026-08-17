@@ -1,0 +1,3 @@
+# name: Type annotation
+# --
+${1:name}: ${2:Type}

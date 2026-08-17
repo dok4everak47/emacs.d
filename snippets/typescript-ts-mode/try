@@ -1,0 +1,7 @@
+# name: Try / catch
+# --
+try {
+  $0
+} catch (${1:error}) {
+  ${2:console.error(${1:error});}
+}

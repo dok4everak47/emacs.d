@@ -1,0 +1,3 @@
+# name: Import default
+# --
+import ${1:name} from '${2:module}'

@@ -1,0 +1,5 @@
+# name: ForEach loop
+# --
+array.forEach(function(${1:item}) {
+  $0
+})

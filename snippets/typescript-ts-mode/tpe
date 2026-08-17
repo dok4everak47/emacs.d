@@ -1,0 +1,3 @@
+# name: Typeof guard
+# --
+typeof ${1:x} === '${2:undefined}'

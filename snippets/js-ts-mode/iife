@@ -1,0 +1,5 @@
+# name: IIFE
+# --
+(function() {
+  $0
+})()

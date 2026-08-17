@@ -1,0 +1,5 @@
+# name: Named function expression
+# --
+const ${1:name} = function(${2:params}) {
+  $0
+}
