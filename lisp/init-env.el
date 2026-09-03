@@ -31,7 +31,7 @@
     (exec-path-from-shell-initialize)
     (make-directory (file-name-directory my-exec-path-cache-file) t)
     (with-temp-file my-exec-path-cache-file
-      (insert (format "(setq exec-path %S)\n(setenv \"PATH\" %S)\n"
+      (insert (format "(setq exec-path '%S)\n(setenv \"PATH\" %S)\n"
                       exec-path (getenv "PATH"))))
     (message "exec-path refreshed"))
 
