@@ -61,6 +61,69 @@
 (setq meow-use-cursor-position-hack t)   ; a (append) 在行尾正确追加
 (setq meow-keypad-self-insert-undefined nil) ; keypad 未定义键不自动输入, 安静退出
 
+;; ---------- Vim 手感自定义命令 (2026-08, vim-flavor 分支) ----------
+;; 让 meow 的几个键位更贴近 Nvim: d 删选区、s 替换字符、x 删字符、
+;; X 删前一字符、A 行尾追加、I 行首插入、o/O 开新行。
+;; 原 meow 键位 (d=删1字符, x=选整行, s=删选区, A/I=开行, o/O=列块) 挪到 SPC 前缀。
+(defun my-meow-vim-open-line-below ()
+  "光标下方开新行并进入输入态 (Vim o). 保留原 meow-open-below 语义."
+  (interactive)
+  (meow-open-below))
+
+(defun my-meow-vim-open-line-above ()
+  "光标上方开新行并进入输入态 (Vim O). 保留原 meow-open-above 语义."
+  (interactive)
+  (meow-open-above))
+
+(defun my-meow-vim-append-eol ()
+  "移到行尾并进入输入态 (Vim A). 光标在行尾时不额外移动, 直接进输入."
+  (interactive)
+  (end-of-line)
+  (meow-insert))
+
+(defun my-meow-vim-insert-bol ()
+  "移到行首并进入输入态 (Vim I). 光标在行首时不额外移动, 直接进输入."
+  (interactive)
+  (beginning-of-line)
+  (meow-insert))
+
+(defun my-meow-vim-delete-char ()
+  "删除光标处 1 字符 (Vim x). 保留原 meow-delete 语义."
+  (interactive)
+  (meow-delete))
+
+(defun my-meow-vim-delete-backward-char ()
+  "删除光标前 1 字符 (Vim X). 保留原 meow-backward-delete 语义."
+  (interactive)
+  (meow-backward-delete))
+
+(defun my-meow-vim-substitute ()
+  "删除光标处字符并进入输入态 (Vim s). 相当于 x 后进 insert."
+  (interactive)
+  (meow-delete)
+  (meow-insert))
+
+(defun my-meow-vim-select-line ()
+  "选中整行 (原 meow x 的功能, 挪到 SPC l). 保留 meow-line 语义."
+  (interactive)
+  (meow-line))
+
+(defun my-meow-vim-select-block ()
+  "选中矩形块 (原 meow o 的功能, 挪到 SPC b). 保留 meow-block 语义."
+  (interactive)
+  (meow-block))
+
+(defun my-meow-vim-to-block ()
+  "跳到矩形块 (原 meow O 的功能, 挪到 SPC B). 保留 meow-to-block 语义."
+  (interactive)
+  (meow-to-block))
+
+(defun my-meow-vim-kill-region ()
+  "删除选区 (Vim d, 即原 meow s / meow-kill)."
+  (interactive)
+  (meow-kill))
+
+
 ;; ---------- QWERTY 布局 (官方示例, 见 meow repo KEYBINDING_QWERTY.org) ----------
 (defun my-meow-setup ()
   (meow-motion-define-key
@@ -99,13 +162,15 @@
    '("[" . meow-beginning-of-thing)
    '("]" . meow-end-of-thing)
    '("a" . meow-append)
-   '("A" . meow-open-below)
+   ;; A = 行尾追加进输入 (Vim A); 开新行挪到 o/O
+   '("A" . my-meow-vim-append-eol)
    '("b" . meow-back-word)
    '("B" . meow-back-symbol)
    '("c" . meow-change)
-   ;; d = 删光标处 1 字符 (Vim 的 x); 删选区用 s (meow-kill)!
-   '("d" . meow-delete)
-   '("D" . meow-backward-delete)
+   ;; d = 删选区 (Vim d, 即原 meow s / meow-kill)
+   '("d" . my-meow-vim-kill-region)
+   ;; D = 删光标前 1 字符 (Vim X); 保留原 meow-backward-delete 语义
+   '("D" . my-meow-vim-delete-backward-char)
    '("e" . meow-next-word)
    '("E" . meow-next-symbol)
    '("f" . meow-find)
@@ -114,7 +179,8 @@
    '("h" . meow-left)
    '("H" . meow-left-expand)
    '("i" . meow-insert)
-   '("I" . meow-open-above)
+   ;; I = 行首插入进输入 (Vim I); 开新行挪到 o/O
+   '("I" . my-meow-vim-insert-bol)
    '("j" . meow-next)
    '("J" . meow-next-expand)
    '("k" . meow-prev)
@@ -124,22 +190,27 @@
    ;; m 原绑 meow-join (合并行去换行), 用户不需要, 显式禁用 (2026-08)
    '("m" . ignore)
    '("n" . meow-search)
-   '("o" . meow-block)
-   '("O" . meow-to-block)
+   ;; o = 下方开新行 (Vim o); 原 meow-block 挪到 SPC b
+   '("o" . my-meow-vim-open-line-below)
+   ;; O = 上方开新行 (Vim O); 原 meow-to-block 挪到 SPC B
+   '("O" . my-meow-vim-open-line-above)
    '("p" . meow-yank)
    '("q" . meow-quit)
    '("Q" . meow-goto-line)
    '("r" . meow-replace)
    '("R" . meow-swap-grab)
-   '("s" . meow-kill)
+   ;; s = 删光标处字符并进输入 (Vim s); 原 meow-kill 挪到 d
+   '("s" . my-meow-vim-substitute)
    '("t" . meow-till)
    '("u" . meow-undo)
    '("U" . meow-undo-in-selection)
    '("v" . meow-visit)
    '("w" . meow-mark-word)
    '("W" . meow-mark-symbol)
-   '("x" . meow-line)
-   '("X" . meow-goto-line)
+   ;; x = 删光标处 1 字符 (Vim x); 原 meow-line (选整行) 挪到 SPC l
+   '("x" . my-meow-vim-delete-char)
+   ;; X = 删光标前 1 字符 (Vim X); 原 meow-goto-line (跳行号) 保留在 Q
+   '("X" . my-meow-vim-delete-backward-char)
    '("y" . meow-save)
    '("Y" . meow-sync-grab)
    '("z" . meow-pop-selection)
@@ -346,6 +417,11 @@
     (define-key map (kbd "s s") #'surround-insert)
     (define-key map (kbd "s d") #'surround-delete)
     (define-key map (kbd "s c") #'surround-change)
+    ;; Vim 手感分支: 原单键 x/o/O 挪来的低频命令 (2026-08)
+    ;; SPC l = 选整行 (原 meow x); SPC b/B = 列块选择/跳转 (原 meow o/O)
+    (define-key map (kbd "l") #'my-meow-vim-select-line)
+    (define-key map (kbd "b") #'my-meow-vim-select-block)
+    (define-key map (kbd "B") #'my-meow-vim-to-block)
     map)
   "Meow leader 扩展 map (SPC 前缀, 不占用 C-c 键位).")
 
