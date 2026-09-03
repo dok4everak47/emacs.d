@@ -372,6 +372,26 @@
 (unless (server-running-p)
   (server-start))
 
+;; ================= with-editor: 定位 emacsclient (Nix 布局, 2026-08-23) =================
+;; Nix 装的 Emacs.app 里不带 bin/emacsclient (CLI 工具在 /nix/store/<hash>-emacs-X.Y/bin/),
+;; exec-path 又不含 store 路径 → magit commit 时 with-editor 报
+;; "Cannot determine a suitable Emacsclient"。store hash 升级即变, 不能写死路径,
+;; 故启动时动态解析: 先按 PATH 找, 找不到再扫 /nix/store 下与当前 Emacs
+;; 版本一致的 emacs 包 (多个 hash 时取序最大的, 同版本协议无差别)。
+(require 'cl-lib)
+(defun my-locate-emacsclient ()
+  "返回可用的 emacsclient 绝对路径; 找不到返回 nil."
+  (or (executable-find "emacsclient")
+      (car (sort
+            (cl-remove-if-not
+             #'file-exists-p
+             (mapcar (lambda (d) (expand-file-name "bin/emacsclient" d))
+                     (directory-files "/nix/store" t
+                                      (concat "-emacs-" emacs-version "\\'"))))
+            #'string>))))
+(with-eval-after-load 'with-editor
+  (setq with-editor-emacsclient-executable (my-locate-emacsclient)))
+
 ;; ================= Gnus: 启动不弹 auto-save 询问 =================
 ;; 上次 Gnus 未正常退出会残留 ~/.newsrc-dribble, 下次启动弹
 ;; "Gnus auto-save file exists. Do you want to read it?"。
