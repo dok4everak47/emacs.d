@@ -859,6 +859,10 @@ glyph width estimation error."
             "捕获" "快速捕获任务/笔记 (C-c c)"
             (lambda (&rest _) (org-capture)))
            (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-pencil") "✍")
+            "新建笔记" "直接新建笔记 (跳过模板选择)"
+            (lambda (&rest _) (org-capture nil "n")))
+           (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-inbox") "📥")
             "收件箱" "打开收集箱 inbox.org"
             (lambda (&rest _) (find-file "~/org/inbox.org")))
