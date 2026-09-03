@@ -869,7 +869,11 @@ glyph width estimation error."
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-book") "📔")
             "日记" "打开日记 journal.org"
-            (lambda (&rest _) (find-file "~/org/journal.org"))))))
+            (lambda (&rest _) (find-file "~/org/journal.org")))
+           (,(if (fboundp 'nerd-icons-octicon)
+                 (nerd-icons-octicon "nf-oct-note") "📝")
+            "笔记" "打开笔记索引 index.org"
+            (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
   (dashboard-startup-banner 'logo)
