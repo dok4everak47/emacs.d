@@ -52,3 +52,6 @@ org-roam.db-*
 
 # 已归档的临时诊断脚本 (archive/ 全目录不入库)
 archive/
+
+# 运行时数据: 书签 (变动频繁, 每机不同)
+bookmarks
