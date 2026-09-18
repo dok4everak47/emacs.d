@@ -162,6 +162,132 @@ C-c <letter> 是用户保留键, 不会与 major-mode 冲突."
   ;; (init-dev.el 加载时 js 未加载, 2026-08 实测启动报错)
   (define-key js-ts-mode-map (kbd "C-c C-x") #'my-js-run))
 
+;; ---------- Rust 一键运行 (nvim <leader>r 的 Emacs 版, 2026-09-18) ----------
+;; 规则与 nvim lua/config/run.lua 对齐:
+;;   ① 项目模式: 向上找到 Cargo.toml → 在项目根 cargo run
+;;      - 单 bin → 裸 cargo run; 当前文件是某 bin 源码 → --bin 点名;
+;;      - 多 bin 且当前文件不是任何 bin → 列出候选, 不瞎猜 (nvim 同款)
+;;   ② 单文件模式: 没有 Cargo.toml → rustc 编译到 /tmp 再运行
+;;   ③ 工具链纪律: rustc/cargo 只在项目 devShell (Nix 铁律),
+;;      向上找到 .envrc 才加 "direnv exec . " 前缀, 否则裸跑 (报错更直白)
+;;   ④ 输出走 compile buffer: 错误行可点击, M-g n/p 跳转, 复跑自动替换旧内容
+(require 'cl-lib)
+
+(defun my-rust--direnv-prefix (dir)
+  "DIR 向上有 .envrc 返回 \"<direnv绝对路径> exec . \", 否则空串."
+  (if (locate-dominating-file dir ".envrc")
+      (concat (or (executable-find "direnv")
+                  "/run/current-system/sw/bin/direnv")
+              " exec . ")
+    ""))
+
+(defun my-rust--package-name (root)
+  "读 ROOT/Cargo.toml 的 [package] 段第一处 name (不引 TOML 解析器, nvim 同款)."
+  (let ((in-pkg nil) (name nil))
+    (when (file-exists-p (expand-file-name "Cargo.toml" root))
+      (with-temp-buffer
+        (insert-file-contents (expand-file-name "Cargo.toml" root))
+        (while (and (not name) (not (eobp)))
+          (let ((line (buffer-substring-no-properties
+                       (line-beginning-position) (line-end-position))))
+            (when (string-match-p "^[ \t]*\\[.*\\]" line)
+              (setq in-pkg (string-match-p "^[ \t]*\\[package\\]" line)))
+            (when (and in-pkg (null name)
+                       (string-match "^[ \t]*name[ \t]*=[ \t]*\"\\(.*\\)\"" line))
+              (setq name (match-string 1 line))))
+          (forward-line 1))))
+    name))
+
+(defun my-rust--cargo-bins (root path)
+  "返回 (BINS . BIN-OF): 项目 ROOT 的可运行 bin 列表 + 当前 PATH 对应的 bin 名 (或 nil).
+bin 名规则与 nvim run.lua cargo_bins 一致:
+  src/main.rs → Cargo.toml [package] name;  src/bin/x.rs → x;  src/bin/x/main.rs → x."
+  (let ((seen '()) (bins '()))
+    (cl-flet ((add (n)
+               (when (and n (> (length n) 0) (not (member n seen)))
+                 (setq seen (cons n seen))
+                 (setq bins (append bins (list n))))))
+      (let* ((main-rs (expand-file-name "src/main.rs" root))
+             (pkg-name (my-rust--package-name root)))
+        (when (file-exists-p main-rs)
+          (add (or pkg-name
+                   (file-name-nondirectory (directory-file-name root)))))
+        (let ((bin-dir (expand-file-name "src/bin" root)))
+          (when (file-directory-p bin-dir)
+            (dolist (f (directory-files bin-dir t "\\.rs\\'"))
+              (add (file-name-base f)))
+            (dolist (d (directory-files bin-dir t "^[^.]" t))
+              (when (file-directory-p d)
+                (let ((m (expand-file-name "main.rs" d)))
+                  (when (file-exists-p m)
+                    (add (file-name-nondirectory d))))))))
+        (let ((bin-of nil))
+          (cond ((file-equal-p path main-rs)
+                 (setq bin-of (or pkg-name
+                                  (file-name-nondirectory (directory-file-name root)))))
+                ((file-in-directory-p path (expand-file-name "src/bin" root))
+                 (let* ((rel (file-relative-name path (expand-file-name "src/bin" root)))
+                        (parts (split-string rel "/")))
+                   (if (and (= (length parts) 2)
+                            (string= (nth 1 parts) "main.rs"))
+                       (setq bin-of (nth 0 parts))
+                     (setq bin-of (file-name-base path))))))
+          (cons bins bin-of))))))
+
+(defun my-rust--resolve-command (path)
+  "PATH (.rs 绝对路径) → (命令 . 运行目录) cons; 多 bin 无法确定时 message 候选并返回 nil.
+与 nvim run.lua M.resolve 对齐: Cargo.toml 项目 → cargo run, 否则 rustc 单文件.
+⚠️ locate-dominating-file 返回缩写路径 (~/...), 必须 expand-file-name 还原绝对路径,
+否则 shell-quote-argument 会把 ~ 转义成 \\~ → cd 失败 (2026-09-18 实测)."
+  (setq path (expand-file-name path))
+  (let* ((dir (file-name-directory path))
+         (root (when-let ((r (locate-dominating-file dir "Cargo.toml")))
+                 (expand-file-name r))))
+    (if root
+        (let* ((r (my-rust--cargo-bins root path))
+               (bins (car r))
+               (bin-of (cdr r))
+               (args (cond ((<= (length bins) 1) "run")
+                           (bin-of (concat "run --bin "
+                                           (shell-quote-argument bin-of))))))
+          (if args
+              (cons (format "cd %s && %scargo %s"
+                            (shell-quote-argument root)
+                            (my-rust--direnv-prefix root)
+                            args)
+                    root)
+            (message "这个 crate 有多个可运行目标 (%s), 打开对应源文件再运行"
+                     (mapconcat #'identity bins ", "))
+            nil))
+      (let ((out (concat "/tmp/emacs-rust-run-" (file-name-base path))))
+        (cons (format "cd %s && %srustc %s -o %s && %s"
+                      (shell-quote-argument dir)
+                      (my-rust--direnv-prefix dir)
+                      (shell-quote-argument (file-name-nondirectory path))
+                      (shell-quote-argument out)
+                      (shell-quote-argument out))
+              dir)))))
+
+(defun my-rust-run ()
+  "运行当前 Rust 文件/项目 (nvim <leader>r 的 Emacs 版).
+Cargo 项目 → 项目根 cargo run (多 bin 自动点名 --bin); 无 Cargo.toml → rustc 编译到 /tmp 后运行.
+工具链走项目 devShell: 向上有 .envrc 自动加 direnv exec 前缀.
+输出进 *compilation* buffer: 错误行可点击, M-g n/p 跳转, 复跑自动替换旧内容."
+  (interactive)
+  (if (not (derived-mode-p 'rust-ts-mode 'rust-mode))
+      (message "当前 buffer 不是 Rust 文件")
+    (let ((path (buffer-file-name)))
+      (if (not path)
+          (message "文件还没保存过, 先 C-x C-s 保存")
+        (save-buffer)
+        (let ((res (my-rust--resolve-command path)))
+          (when res
+            (compile (car res))))))))
+
+(with-eval-after-load 'rust-ts-mode
+  ;; rust-ts-mode-map 要等 rust-ts-mode.el 加载后才存在 (与 js 同款坑)
+  (define-key rust-ts-mode-map (kbd "C-c C-r") #'my-rust-run))
+
 ;; ---------- JS/TS 变量引用高亮补丁 ----------
 ;; js-ts-mode 默认只给赋值左值/声明上变量色, return a + b 这类表达式里
 ;; 的变量引用无 face (白色)。补一条规则: 所有 identifier 染上 variable-use-face,

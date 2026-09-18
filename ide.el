@@ -381,7 +381,8 @@
     ["项目内找文件" my-consult-projectile-find-file t]
     ["切换项目" projectile-switch-project t]
     ["启动 LSP" lsp t]
-    ["关闭 LSP" lsp-shutdown-workspace t]))
+    ["关闭 LSP" lsp-shutdown-workspace t]
+    ["运行 Rust 文件/项目 (C-c C-r)" my-rust-run t]))
 
 ;; ---------- Dashboard 四模块卡片化 (svg-lib + :align-to 动态居中) ----------
 (defconst my-dash-card-width 28 "Uniform content width in chars per card row.")
