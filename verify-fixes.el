@@ -71,6 +71,16 @@
       (push (format "[%s] impatient-mode-delay = 0.5 (实际 %S)" (if (= id 0.5) "OK" "FAIL") id) out)
       (push (format "[%s] flymake-margin-enabled 已删除 (boundp=%s)" (if (not fm) "OK" "FAIL") fm) out)))
 
+  ;; 5b. Rust 环境 (2026-09-18 新增: lsp-mode rust 钩子 + treesit 语法)
+  (progn
+    (require 'treesit nil t)
+    (let ((hr (member 'lsp-deferred (default-value 'rust-ts-mode-hook)))
+          (hm (member 'lsp-deferred (default-value 'rust-mode-hook)))
+          (g (ignore-errors (treesit-language-available-p 'rust))))
+      (push (format "[%s] rust-ts-mode 钩子含 lsp-deferred (实际 %S)" (if hr "OK" "FAIL") (and hr t)) out)
+      (push (format "[%s] rust-mode 钩子含 lsp-deferred (实际 %S)" (if hm "OK" "FAIL") (and hm t)) out)
+      (push (format "[%s] rust tree-sitter 语法已装 (实际 %S)" (if g "OK" "FAIL") g) out)))
+
   ;; 6. 干净启动无初始化错误 (查 *Warnings* 是否有 initialization)
   (let ((w (get-buffer "*Warnings*")))
     (if w

@@ -156,7 +156,7 @@
 ;; ---------- 隐藏工具条 (更像 VSCode; 需要时 M-x tool-bar-mode 可开回) ----------
 (tool-bar-mode -1)
 
-;; ---------- LSP (lsp-mode + lsp-ui; PHP/Python/JS 自动启动) ----------
+;; ---------- LSP (lsp-mode + lsp-ui; PHP/Python/JS/Rust 自动启动) ----------
 ;; 2026-08-17 从 eglot 整体切换: lsp-mode + lsp-ui 提供更完整的 IDE 能力 —
 ;; 悬浮文档 lsp-ui-doc、行尾诊断侧栏 lsp-ui-sideline、peek 跳转 lsp-ui-peek、
 ;; headerline 面包屑、code lens, 且生态更活跃 (lsp-treemacs 等可选)。
@@ -190,7 +190,12 @@
          (python-ts-mode . lsp-deferred)
          (js-ts-mode . lsp-deferred)
          (typescript-ts-mode . lsp-deferred)
-         (tsx-ts-mode . lsp-deferred))
+         (tsx-ts-mode . lsp-deferred)
+         ;; Rust: rust-analyzer 由项目 devShell 提供 (Nix 铁律, 不装全局),
+         ;; 打开项目内 .rs 文件时 envrc 自动加载 direnv 环境, lsp 才找得到它;
+         ;; 项目外打开 rust-analyzer 不存在, LSP 起不来属预期。
+         (rust-mode . lsp-deferred)
+         (rust-ts-mode . lsp-deferred))
   :custom
   (lsp-idle-delay 0.2)                 ; 默认 0.5s idle, 调短更跟手
   (lsp-auto-guess-root t)              ; 用 projectile/project 自动猜项目根 (省去首次打开时的 import 交互)
