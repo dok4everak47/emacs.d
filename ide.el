@@ -946,6 +946,130 @@ glyph width estimation error."
   (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16"))))
   (dashboard-text-banner ((t (:foreground "#5cff87" :family "DotGothic16")))))
 
+;; ---------- Lain banner 动画: 终端滚动 (2026-09) ----------
+;; 0.35s/tick 重绘 NAVI 屏幕内部: 8 行 boot log 在 4 行终端窗口滚动,
+;; 光标闪烁, 静噪每帧循环移位 (CRT 闪烁感), 滚完停留 4 帧后循环。
+;; 只重写 banner 区块 (bezel 内, 10 行 × 62 列, 每帧几何一致), 不碰
+;; 卡片/按钮; dashboard 不可见时 tick 直接跳过 (近零开销)。
+;; re-render (recentf 钩子/dashboard-open/C-c h) 会重建 buffer → marker
+;; 失效, tick 自愈: 锚点校验失败就按 ".-[ N A V I ]"/"^'--" 重新定位。
+(require 'cl-lib)
+(defvar my-dash-anim-timer nil "banner 动画 timer (重复, 见 `my-dash-anim--interval').")
+(defvar my-dash-anim--frame 0 "当前帧序号 (tick 自增, block 内取模).")
+(defvar my-dash-anim--beg nil "banner 区块起始 marker (bezel 顶行行首).")
+(defvar my-dash-anim--end nil "banner 区块结束 marker (bezel 底行行尾).")
+(defconst my-dash-anim--iw 58 "NAVI 屏幕内宽 (bezel 内部列数).")
+(defconst my-dash-anim--hold 4 "滚动完一轮后的停留帧数.")
+(defconst my-dash-anim--interval 0.35 "每帧间隔秒数.")
+(defconst my-dash-anim--log
+  '("> lain.exe_ booting"
+    "> layer 07 : connection"
+    "> protocol . . . KNIGHT"
+    "> connecting to the wired"
+    "> handshake . . . . OK"
+    "> no matter where you go,"
+    "> everyone's connected."
+    "> present day, present time.")
+  "滚动日志行 (终端窗口一次显示 4 行).")
+(defvar my-dash-anim--noise
+  (mapcar (lambda (_)
+            (mapconcat (lambda (_)
+                         (if (< (random 100) 16)
+                             (char-to-string (aref ".:.;," (random 5)))
+                           " "))
+                       (number-sequence 1 my-dash-anim--iw) ""))
+          '(0 1))
+  "两条 CRT 静噪行 (每会话随机, 逐帧循环移位).")
+
+(defun my-dash-anim--rot (s n)
+  "字符串 S 循环左移 N 位 (静噪闪烁用)."
+  (let* ((l (length s))
+         (n (% n l)))
+    (concat (substring s n) (substring s 0 n))))
+
+(defun my-dash-anim--block (f)
+  "第 F 帧的完整 banner 区块 (10 行, 每行 62 列, 不含 tagline 行)."
+  (let* ((n (length my-dash-anim--log))
+         (ff (% f (+ n my-dash-anim--hold)))
+         (cur (min ff (1- n)))
+         (newest (1+ cur))
+         (first (max 0 (- newest 4)))
+         (show (cl-subseq my-dash-anim--log first newest))
+         (cursor (if (= (% f 2) 0) "_" ""))
+         (log-rows
+          (cl-loop for i below 4 collect
+                   (let ((ln (or (nth i show) "")))
+                     (if (and (= i (1- (length show))) cursor)
+                         (concat ln cursor) ln)))))
+    (mapconcat
+     #'identity
+     (list
+      (concat ".-[ N A V I ]" (make-string (- my-dash-anim--iw 10) ?-) ".")
+      (format "| %-58s |" (my-dash-anim--rot (nth 0 my-dash-anim--noise) f))
+      (format "| %-58s |" "L A I N   E X P E R I M E N T S")
+      (format "| %-58s |" (nth 0 log-rows))
+      (format "| %-58s |" (nth 1 log-rows))
+      (format "| %-58s |" (nth 2 log-rows))
+      (format "| %-58s |" (nth 3 log-rows))
+      (format "| %-58s |" (my-dash-anim--rot (nth 1 my-dash-anim--noise) f))
+      (format "| %-58s |" "")
+      "'------------------------------------------------------------'")
+     "\n")))
+
+(defun my-dash-anim--locate ()
+  "按锚点重新定位 banner 区块 (bezel 顶行行首 → bezel 底行行尾)."
+  (save-excursion
+    (goto-char (point-min))
+    (when (search-forward ".-[ N A V I ]" nil t)
+      (let ((beg (progn (beginning-of-line) (point-marker))))
+        (when (re-search-forward "^'--" nil t)
+          (setq my-dash-anim--beg beg
+                my-dash-anim--end (progn (end-of-line) (point-marker))))))))
+
+(defun my-dash-anim--draw ()
+  "重绘一帧 (不含可见性检查; marker 失效先自愈重定位)."
+  (with-current-buffer (get-buffer dashboard-buffer-name)
+    ;; 自愈: marker 失效/锚点不在 → 重新定位
+    ;; (re-render 时 erase-buffer 会把 marker 折叠到 point-min 成零宽度,
+    ;;  且 banner 前有换行, 锚点字符串可能落在前 13 字符内造成假命中 —
+    ;;  所以零宽度/非行首/行首非 "." 都视为失效)
+    (unless (and (markerp my-dash-anim--beg) (markerp my-dash-anim--end)
+                 (marker-buffer my-dash-anim--beg)
+                 (/= my-dash-anim--beg my-dash-anim--end)
+                 (save-excursion
+                   (goto-char my-dash-anim--beg)
+                   (and (bolp) (eq (char-after) ?.))))
+      (my-dash-anim--locate))
+    (when (and (markerp my-dash-anim--beg) (markerp my-dash-anim--end)
+               (marker-buffer my-dash-anim--beg))
+      (let* ((wins (get-buffer-window-list (current-buffer) nil 'all-frames))
+             (pts (mapcar #'window-point wins))
+             (inhibit-read-only t)
+             (inhibit-modification-hooks t)
+             (buffer-undo-list t))
+        (save-excursion
+          (delete-region my-dash-anim--beg my-dash-anim--end)
+          (goto-char my-dash-anim--beg)
+          (insert (propertize (my-dash-anim--block my-dash-anim--frame)
+                              'face 'dashboard-text-banner))
+          (set-marker my-dash-anim--end (point)))
+        ;; 区块每帧几何一致 → 各窗口 point 原偏移恢复
+        (cl-mapcar (lambda (w p)
+                     (when (window-live-p w) (set-window-point w p)))
+                   wins pts)
+        (setq my-dash-anim--frame (1+ my-dash-anim--frame))))))
+
+(defun my-dash-anim--tick ()
+  "动画 tick: dashboard 可见时才重绘 (不可见近零开销)."
+  (when (and (get-buffer dashboard-buffer-name)
+             (get-buffer-window dashboard-buffer-name 'all-frames))
+    (my-dash-anim--draw)))
+
+(when (timerp my-dash-anim-timer) (cancel-timer my-dash-anim-timer))
+(setq my-dash-anim-timer
+      (run-with-timer my-dash-anim--interval my-dash-anim--interval
+                      #'my-dash-anim--tick))
+
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
 
