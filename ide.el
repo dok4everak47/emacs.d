@@ -472,8 +472,23 @@ All card rows are padded to the same width, so cards are equal-sized."
   "Bottom border interior: ─×W (caller wraps with └ and ┘)."
   (my-dash--box-fill))
 
-(defconst my-dash--box-border-face '(:foreground "#49505e")
-  "Low-contrast gray-blue face for all box borders.")
+;; ---------- Dashboard 配色: 昭和レトロ/シティポップ黄昏色系 ----------
+;; 改色只动这组变量 (引用点: 卡片边框/卡片标题/四类内容行/导航按钮/占位);
+;; 主标题和 footer 两个 face 在下方 use-package dashboard 的 :custom-face
+;; 里, 那两处是字面量, 换色时需手动同步。
+(defconst my-dash-c-title    "#ff9e64" "主标题/落日橙 (夕焼けオレンジ).")
+(defconst my-dash-c-border   "#8a7a99" "卡片边框/夕暮れ紫 (低饱和, 保持安静).")
+(defconst my-dash-c-cardhead "#ff7a93" "卡片标题/珊瑚粉.")
+(defconst my-dash-c-recent   "#a6d189" "最近文件行/若叶绿.")
+(defconst my-dash-c-project  "#bb9af7" "项目行/藤紫.")
+(defconst my-dash-c-agenda   "#ff9e64" "日程行/落日橙 (与主标题同色).")
+(defconst my-dash-c-idle     "#6e6258" "占位文案/暖灰.")
+(defconst my-dash-c-bookmark "#4fd6be" "书签行/浅葱青.")
+(defconst my-dash-c-button   "#ffd9a0" "导航按钮/奶油金.")
+(defconst my-dash-c-footer   "#d9a0b0" "页脚/淡樱.")
+
+(defconst my-dash--box-border-face (list :foreground my-dash-c-border)
+  "Low-contrast dusk-purple face for all box borders (夕暮れ紫).")
 
 (defun my-dash--box-row (text face &optional action)
   "Render one box row: gray │ border + padded content with FACE.
@@ -527,10 +542,12 @@ Layout algorithm (dynamic, window-width independent, unchanged):
         ;; ---- title row ----
         (my-dash--align col1)
         (my-dash--insert-card-row
-         (format "%s %s" (my-dash--icon icon1) label1) '(:foreground "#61afef"))
+         (format "%s %s" (my-dash--icon icon1) label1)
+         (list :foreground my-dash-c-cardhead))
         (my-dash--align col2)
         (my-dash--insert-card-row
-         (format "%s %s" (my-dash--icon icon2) label2) '(:foreground "#61afef"))
+         (format "%s %s" (my-dash--icon icon2) label2)
+         (list :foreground my-dash-c-cardhead))
         (insert "\n")
         ;; ---- separator + content rows (height from actual data) ----
         (let ((rows-n (max (length rows1) (length rows2))))
@@ -745,28 +762,28 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
     (my-dash--insert-card-pair
      (list "nf-fa-files_o" "Recent Files"
            (mapcar (lambda (f)
-                     (list "nf-md-file" (car f) (list 'find-file-existing (cdr f)) "#98be65"))
+                     (list "nf-md-file" (car f) (list 'find-file-existing (cdr f)) my-dash-c-recent))
                    (seq-take recents my-dash-card-rows)))
      (list "nf-fa-folder_open_o" "Projects"
            (mapcar (lambda (p)
-                     (list "nf-md-folder" (car p) (list 'projectile-switch-project-by-name (cdr p)) "#c678dd"))
+                     (list "nf-md-folder" (car p) (list 'projectile-switch-project-by-name (cdr p)) my-dash-c-project))
                    (seq-take projects my-dash-card-rows))))
     (my-dash--insert-card-pair
      (list "nf-fa-calendar" "Agenda"
            (if agenda
                (mapcar (lambda (a)
-                         (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") "#e5c07b"))
+                         (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") my-dash-c-agenda))
                        (seq-take agenda my-dash-card-rows))
              ;; agenda 异步加载中/失败: 先显示占位, 数据到了自动重渲染
              (list (list "nf-md-calendar_clock"
                          (if my-dash--agenda-loading
                              "Loading calendar…"
                            "Agenda unavailable")
-                         nil "#5b6268"))))
+                         nil my-dash-c-idle))))
      (list "nf-fa-bookmark_o" "Bookmarks"
            (mapcar (lambda (b)
                      (list "nf-md-bookmark" (car b)
-                           (list 'bookmark-jump (car b)) "#56b6c2"))
+                           (list 'bookmark-jump (car b)) my-dash-c-bookmark))
                    (seq-take bookmarks my-dash-card-rows))))))
 
 (defun my-dash--navigator-row (row)
@@ -786,7 +803,7 @@ bright-blue color. Both icon and label are clickable."
        (concat (apply #'propertize icon click-props)
                (apply #'propertize (concat " " label)
                       (append click-props
-                              (list 'face '(:foreground "#7aa2f7")))))))
+                              (list 'face (list :foreground my-dash-c-button)))))))
    row (make-string my-dash-card-gap ?\s)))
 
 (defun my-dash-insert-navigator-box ()
@@ -891,7 +908,7 @@ glyph width estimation error."
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
-  (dashboard-banner-logo-title "Welcome to Emacs")
+  (dashboard-banner-logo-title "ようこそ、Emacs の世界へ")
   ;; 四模块: recents/projects/agenda/bookmarks (卡片化渲染, 见 my-dash-insert-items)
   (dashboard-items '((recents . 6)
                      (projects . 5)
@@ -901,9 +918,11 @@ glyph width estimation error."
   ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
   (dashboard-path-style 'truncate-beginning)
   (dashboard-path-max-length 40)
-  ;; footer 固定文案 (默认是随机英文梗语录), 带 Emacs 版本号
+  ;; footer 文案: 日式复古动画风语录, 每次启动随机一条, 带 Emacs 版本号
   (dashboard-footer-messages
-   (list (format "Happy hacking! · Emacs %s" emacs-version)))
+   (list (format "本日もハッピーハッキング！ · Emacs %s" emacs-version)
+         (format "銀河を駆けるキーボード · Emacs %s" emacs-version)
+         (format "昭和レトロ、令和エディタ · Emacs %s" emacs-version)))
   (dashboard-startupify-list
    '(dashboard-insert-banner
      dashboard-insert-newline
@@ -917,10 +936,10 @@ glyph width estimation error."
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题放大加粗 (默认 inherit default)
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold))))
-  ;; footer 亮灰斜体 (默认继承 widget-button, 颜色偏暗)
-  (dashboard-footer-face ((t (:foreground "#aaaaaa" :slant italic)))))
+  ;; 标题: 落日橙 + 放大加粗 (色值与 my-dash-c-title 一致, 换色需同步)
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#ff9e64"))))
+  ;; footer: 淡樱斜体 (色值与 my-dash-c-footer 一致)
+  (dashboard-footer-face ((t (:foreground "#d9a0b0" :slant italic)))))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
