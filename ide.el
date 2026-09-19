@@ -490,12 +490,16 @@ All card rows are padded to the same width, so cards are equal-sized."
 (defconst my-dash--box-border-face (list :foreground my-dash-c-border)
   "Low-contrast dark-green face for all box borders (暗绿).")
 
-(defun my-dash--box-row (text face &optional action)
+(defun my-dash--box-row (text face &optional action right-col)
   "Render one box row: gray │ border + padded content with FACE.
 Content is padded to `my-dash-card-width' - 2 (one space each side),
 so the whole row matches border width (`my-dash-card-width' + 2).
 If ACTION given, only the CONTENT is clickable and highlighted —
-the │ border stays gray on selection."
+the │ border stays gray on selection.
+RIGHT-COL 非 nil 时右边界 │ 用 :align-to 钉在绝对列 (display spec):
+CJK 全角的实际 advance 与 string-width 的 2:1 假设不一致 (fallback
+中文字体 ≈1.67:1), 字面空格补位会让右边界漂移; 钉列后无论行内是
+什么文字, 右边界都精确对齐."
   (let* ((inner (- my-dash-card-width 2))
          (padded (my-dash--pad-right
                   (my-dash--trunc text inner)
@@ -508,11 +512,14 @@ the │ border stays gray on selection."
                              'mouse-face 'highlight
                              'help-echo (format "RET: %s" action))
               (propertize padded 'face face))
-            (propertize " │" 'face my-dash--box-border-face))))
+            (if right-col
+                (concat (my-dash--align right-col)
+                        (propertize "│" 'face my-dash--box-border-face))
+              (propertize " │" 'face my-dash--box-border-face)))))
 
-(defun my-dash--insert-card-row (text face &optional action)
+(defun my-dash--insert-card-row (text face &optional action right-col)
   "Insert `my-dash--box-row' at current point."
-  (insert (my-dash--box-row text face action)))
+  (insert (my-dash--box-row text face action right-col)))
 
 (defun my-dash--insert-card-pair (spec1 spec2)
   "Insert two boxed cards side by side, centered as one horizontal group.
@@ -532,7 +539,10 @@ Layout algorithm (dynamic, window-width independent, unchanged):
              (total (+ w1 my-dash-card-gap w2))
              (half (/ total 2))
              (col1 `(- center ,half))
-             (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap))))
+             (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap)))
+             ;; 右边界钉列: CJK 行的字面空格补位会漂移, 用 :align-to 钉死
+             (rc1 `(+ (- center ,half) ,(- w1 1)))
+             (rc2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap w2 -1))))
         ;; ---- top border ----
         (my-dash--align col1)
         (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face my-dash--box-border-face))
@@ -543,11 +553,11 @@ Layout algorithm (dynamic, window-width independent, unchanged):
         (my-dash--align col1)
         (my-dash--insert-card-row
          (format "%s %s" (my-dash--icon icon1) label1)
-         (list :foreground my-dash-c-cardhead))
+         (list :foreground my-dash-c-cardhead) nil rc1)
         (my-dash--align col2)
         (my-dash--insert-card-row
          (format "%s %s" (my-dash--icon icon2) label2)
-         (list :foreground my-dash-c-cardhead))
+         (list :foreground my-dash-c-cardhead) nil rc2)
         (insert "\n")
         ;; ---- separator + content rows (height from actual data) ----
         (let ((rows-n (max (length rows1) (length rows2))))
@@ -564,12 +574,12 @@ Layout algorithm (dynamic, window-width independent, unchanged):
               (when r1
                 (my-dash--insert-card-row
                  (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
-                 `(:foreground ,(nth 3 r1)) (nth 2 r1)))
+                 `(:foreground ,(nth 3 r1)) (nth 2 r1) rc1))
               (my-dash--align col2)
               (when r2
                 (my-dash--insert-card-row
                  (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
-                 `(:foreground ,(nth 3 r2)) (nth 2 r2)))
+                 `(:foreground ,(nth 3 r2)) (nth 2 r2) rc2))
               (insert "\n"))))
         ;; ---- bottom border ----
         (my-dash--align col1)
@@ -760,16 +770,16 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
         (agenda (nth 2 my-dash--cache))
         (bookmarks (nth 3 my-dash--cache)))
     (my-dash--insert-card-pair
-     (list "nf-fa-files_o" "Recent Files"
+     (list "nf-fa-files_o" "最近のファイル"
            (mapcar (lambda (f)
                      (list "nf-md-file" (car f) (list 'find-file-existing (cdr f)) my-dash-c-recent))
                    (seq-take recents my-dash-card-rows)))
-     (list "nf-fa-folder_open_o" "Projects"
+     (list "nf-fa-folder_open_o" "プロジェクト"
            (mapcar (lambda (p)
                      (list "nf-md-folder" (car p) (list 'projectile-switch-project-by-name (cdr p)) my-dash-c-project))
                    (seq-take projects my-dash-card-rows))))
     (my-dash--insert-card-pair
-     (list "nf-fa-calendar" "Agenda"
+     (list "nf-fa-calendar" "アジェンダ"
            (if agenda
                (mapcar (lambda (a)
                          (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") my-dash-c-agenda))
@@ -777,10 +787,10 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
              ;; agenda 异步加载中/失败: 先显示占位, 数据到了自动重渲染
              (list (list "nf-md-calendar_clock"
                          (if my-dash--agenda-loading
-                             "Loading calendar…"
-                           "Agenda unavailable")
+                             "カレンダー読み込み中"
+                           "アジェンダ利用不可")
                          nil my-dash-c-idle))))
-     (list "nf-fa-bookmark_o" "Bookmarks"
+     (list "nf-fa-bookmark_o" "ブックマーク"
            (mapcar (lambda (b)
                      (list "nf-md-bookmark" (car b)
                            (list 'bookmark-jump (car b)) my-dash-c-bookmark))
@@ -854,7 +864,7 @@ glyph width estimation error."
   (setq dashboard-navigator-buttons
         `(((,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-mail") "✉")
-            "收邮件" "Gnus 收邮件"
+            "メール受信" "Gnus 收邮件"
             (lambda (&rest _) (gnus)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-pencil") "✍")
@@ -866,40 +876,40 @@ glyph width estimation error."
             (lambda (&rest _) (my-compose-mail126)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-file_directory") "📂")
-            "文件树" "打开 dired-sidebar 侧边栏"
+            "ファイルツリー" "打开 dired-sidebar 侧边栏"
             (lambda (&rest _) (dired-sidebar-toggle-sidebar)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-sign_out") "🚪")
-            "退出" "退出 Emacs"
+            "終了" "退出 Emacs"
             (lambda (&rest _) (save-buffers-kill-terminal))))
           ;; 第二行: 人生管理 (org)
           ((,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-calendar") "📅")
-            "日程" "人生管理主视图: 本周日程 + 待办"
+            "アジェンダ" "人生管理主视图: 本周日程 + 待办"
             (lambda (&rest _) (org-agenda nil "n")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-plus") "✚")
-            "捕获" "快速捕获任务/笔记 (C-c c)"
+            "キャプチャ" "快速捕获任务/笔记 (C-c c)"
             (lambda (&rest _) (org-capture)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-pencil") "✍")
-            "新建笔记" "直接新建笔记 (跳过模板选择)"
+            "新規ノート" "直接新建笔记 (跳过模板选择)"
             (lambda (&rest _) (org-capture nil "n")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-inbox") "📥")
-            "收件箱" "打开收集箱 inbox.org"
+            "受信トレイ" "打开收集箱 inbox.org"
             (lambda (&rest _) (find-file "~/org/inbox.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-repo") "🗂")
-            "项目" "打开项目树 projects.org"
+            "プロジェクト" "打开项目树 projects.org"
             (lambda (&rest _) (find-file "~/org/projects.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-book") "📔")
-            "日记" "打开日记 journal.org"
+            "日記" "打开日记 journal.org"
             (lambda (&rest _) (find-file "~/org/journal.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-note") "📝")
-            "笔记" "打开笔记索引 index.org"
+            "ノート" "打开笔记索引 index.org"
             (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
@@ -945,6 +955,12 @@ glyph width estimation error."
   (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "DotGothic16"))))
   (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16"))))
   (dashboard-text-banner ((t (:foreground "#5cff87" :family "DotGothic16")))))
+
+;; 启动信息行日文化 (默认英文 "Emacs started in X seconds")
+(setq dashboard-init-info
+      (lambda ()
+        (format "起動時間: %.2f 秒"
+                (float-time (time-subtract after-init-time before-init-time)))))
 
 ;; ---------- Lain banner 动画: 终端滚动 (2026-09) ----------
 ;; 0.35s/tick 重绘 NAVI 屏幕内部: 8 行 boot log 在 4 行终端窗口滚动,
