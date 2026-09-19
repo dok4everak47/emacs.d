@@ -957,6 +957,8 @@ glyph width estimation error."
 (defvar my-dash-anim-timer nil "banner 动画 timer (重复, 见 `my-dash-anim--interval').")
 (defvar my-dash-anim--frame 0 "当前帧序号 (tick 自增, block 内取模).")
 (defvar my-dash-anim--ov nil "banner 区块 overlay (display 属性承载动画帧).")
+(defvar my-dash-anim--fontset nil
+  "banner 专用 fontset (kana/han 也指到 DotGothic16, 见 `my-dash-anim--ensure-fontset').")
 (defconst my-dash-anim--iw 58 "NAVI 屏幕内宽 (bezel 内部列数).")
 (defconst my-dash-anim--hold 4 "滚动完一轮后的停留帧数.")
 (defconst my-dash-anim--interval 0.35 "每帧间隔秒数.")
@@ -1022,6 +1024,23 @@ glyph width estimation error."
       (concat "  " (my-dash-anim--pad "世界を閉じて、次の世界を開く。") "  "))
      "\n")))
 
+(defun my-dash-anim--ensure-fontset ()
+  "建 banner 专用 fontset: kana/han/cjk-misc 强制 DotGothic16.
+全局 fontset (ide.el 字体段) 把 kana/han/cjk-misc 指到 PingFang SC,
+banner 里的日文会被 fontset 规则截走交给中文字体渲染 → advance/行高
+与 DotGothic16 不一致 → 边框错位。专用 fontset 下全部字形同字体
+(DotGothic16 实测 Latin=500/CJK=1000 严格 2:1, 全字符覆盖),
+对齐由构造保证。"
+  (when (and (display-graphic-p) (not my-dash-anim--fontset))
+    (ignore-errors
+      (create-fontset-from-fontset-spec
+       "-*-DotGothic16-medium-r-normal-*-14-*-*-*-*-*-fontset-mydashlain"
+       nil t)
+      (dolist (cs '(kana han cjk-misc bopomofo))
+        (set-fontset-font "fontset-mydashlain" cs
+                          (font-spec :family "DotGothic16")))
+      (setq my-dash-anim--fontset "fontset-mydashlain"))))
+
 (defun my-dash-anim--locate ()
   "按锚点重建 banner 区块 overlay (bezel 顶行 → tagline 行)."
   (with-current-buffer (get-buffer dashboard-buffer-name)
@@ -1048,6 +1067,7 @@ glyph width estimation error."
                    (and (bolp) (eq (char-after) ?.))))
       (my-dash-anim--locate))
     (when (and (overlayp my-dash-anim--ov) (overlay-buffer my-dash-anim--ov))
+      (my-dash-anim--ensure-fontset)
       (let* ((win (car (get-buffer-window-list (current-buffer) nil 'all-frames)))
              ;; 居中: 每帧按 dashboard 窗口宽重算 → 缩放自适应
              (w (if win (window-width win) 100))
@@ -1057,7 +1077,11 @@ glyph width estimation error."
                                 (my-dash-anim--block my-dash-anim--frame) "\n")
                                "\n")))
         (overlay-put my-dash-anim--ov 'display
-                     (propertize block 'face 'dashboard-text-banner))
+                     (if my-dash-anim--fontset
+                         ;; 专用 fontset: CJK 也走 DotGothic16 (2:1 严格对齐)
+                         (propertize block 'face 'dashboard-text-banner
+                                     'fontset my-dash-anim--fontset)
+                       (propertize block 'face 'dashboard-text-banner)))
         (setq my-dash-anim--frame (1+ my-dash-anim--frame))))))
 
 (defun my-dash-anim--tick ()
