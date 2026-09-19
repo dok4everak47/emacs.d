@@ -938,24 +938,13 @@ glyph width estimation error."
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题: 磷光绿 + 放大加粗 (色值与 my-dash-c-title 一致, 换色需同步)
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87"))))
-  ;; footer: 暗磷光绿斜体 (色值与 my-dash-c-footer 一致)
-  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic))))
-  ;; ASCII banner (Lain CRT): 磷光绿 (色值与 my-dash-c-title 一致)
-  (dashboard-text-banner ((t (:foreground "#5cff87")))))
-
-;; Lain 点阵字体 DotGothic16: 只作用于 dashboard buffer (buffer-local face
-;; remap), 不动全局 SpaceMono。字体由 nix-darwin fonts.packages 安装
-;; (modules/system/fonts.nix); 未装/终端环境自动跳过。
-;; ⚠️ 卡片对齐依赖 ─│ 在该字体下保持窄字符 — 若实测变宽, 把 remap 收窄到
-;; 标题/footer 两个 face (见 skill emacs-dashboard)。
-(add-hook 'dashboard-mode-hook
-          (lambda ()
-            (when (and (display-graphic-p)
-                       (member "DotGothic16" (font-family-list)))
-              (setq-local face-remapping-alist
-                          '((default :family "DotGothic16" :height 1.15))))))
+  ;; 标题/footer/banner 三个 face 用 DotGothic16 点阵字体 (Lain CRT 感)。
+  ;; ⚠️ 不能 remap 整个 buffer 的 default face: 卡片边框 ─│ 在该字体下是
+  ;; 全角宽, 会打乱卡片对齐 (2026-09 实测确认) — 卡片保持全局 SpaceMono。
+  ;; 字体未装时该 family 自动回退默认字体, 无副作用。
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "DotGothic16"))))
+  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16"))))
+  (dashboard-text-banner ((t (:foreground "#5cff87" :family "DotGothic16")))))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
