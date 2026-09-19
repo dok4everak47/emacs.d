@@ -903,7 +903,9 @@ glyph width estimation error."
             (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
-  (dashboard-startup-banner 'logo)
+  ;; ASCII banner: 复古落日+网格地平线 (自绘, ~/.emacs.d/banners/; 终端 -nw 也显示)
+  (dashboard-startup-banner (expand-file-name "banners/retro-sunset.txt"
+                                              user-emacs-directory))
   (dashboard-set-heading-icons t)
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
@@ -939,7 +941,9 @@ glyph width estimation error."
   ;; 标题: 落日橙 + 放大加粗 (色值与 my-dash-c-title 一致, 换色需同步)
   (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#ff9e64"))))
   ;; footer: 淡樱斜体 (色值与 my-dash-c-footer 一致)
-  (dashboard-footer-face ((t (:foreground "#d9a0b0" :slant italic)))))
+  (dashboard-footer-face ((t (:foreground "#d9a0b0" :slant italic))))
+  ;; ASCII banner (落日+网格): 落日橙 (色值与 my-dash-c-title 一致)
+  (dashboard-text-banner ((t (:foreground "#ff9e64")))))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
