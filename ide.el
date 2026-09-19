@@ -431,45 +431,54 @@ ACTION is a Lisp form (eval'd) or a function (funcall'd)."
         (if (functionp action) (funcall action) (eval action))))
     map))
 
-(defun my-dash--align (spec)
-  "Insert a space positioned by display :align-to SPEC (no space padding)."
-  (insert (propertize " " 'display `(space :align-to ,spec))))
+(defun my-dash--cell-px ()
+  "当前 canonical 格宽 (px); batch/无 GUI 时回退 11."
+  (or (and (display-graphic-p) (frame-char-width)) 11))
+
+(defun my-dash--px (s)
+  "字符串 S 的实际渲染像素宽 (含 face/display 影响)."
+  (or (ignore-errors (string-pixel-width s))
+      ;; batch/异常回退: string-width × 格宽 (近似)
+      (* (string-width s) (my-dash--cell-px))))
+
+(defun my-dash--px-cells (s)
+  "字符串 S 的实际显示宽度, 单位 = 格 (向上取整)."
+  (ceiling (/ (float (my-dash--px s)) (my-dash--cell-px))))
+
+(defun my-dash--px-gap (px)
+  "PX 像素宽的定宽空格 (:width 小数格, 亚像素精确, 字体 fallback 免疫).
+:align-to 在混排字体行内按理想列数落点, fallback 字体实际更窄时钉列失效
+(2026-09 实测 121px 错位); 定宽 :width 空格不依赖前置文本的字体度量."
+  (if (> px 0)
+      (propertize " " 'display
+                  (list 'space :width (/ (float px) (my-dash--cell-px))))
+    ""))
 
 (defun my-dash--pad-right (str width)
-  "Pad STR with spaces on the right to display WIDTH.
-Spaces live inside the svg-lib image, not as buffer layout."
-  (let ((sw (string-width str)))
-    (if (>= sw width)
-        str
-      (concat str (make-string (- width sw) ?\s)))))
-
-(defun my-dash--line-width (&rest _)
-  "Box outer width (cols): content `my-dash-card-width' + 2 borders.
-All card rows are padded to the same width, so cards are equal-sized."
-  (+ my-dash-card-width 2))
-
-(defun my-dash--card-width (icon label rows)
-  "Actual width (cols) of a card = max(title, content rows)."
-  (let ((w (my-dash--line-width icon label)))
-    (dolist (r rows)
-      (when r
-        (setq w (max w (my-dash--line-width (nth 0 r) (nth 1 r))))))
-    w))
+  "把 STR 补到 WIDTH 格: 像素实测, 尾部用 :width 像素空格精确补齐.
+(原 string-width 版假设 CJK=2 格, 但 fallback 中文字体实际 ≈1.64 格,
+字面空格补位会让右边框漂移 — 像素实测版对任何字体都精确.)"
+  (let* ((px (my-dash--px str))
+         (target (* width (my-dash--cell-px)))
+         (gap (- target px)))
+    (if (> gap 0)
+        (concat str (my-dash--px-gap gap))
+      str)))
 
 (defun my-dash--box-fill ()
-  "Horizontal box filler: ─ repeated to card content width."
-  (make-string my-dash-card-width ?─))
+  "Horizontal box filler: - repeated to card content width."
+  (make-string my-dash-card-width ?-))
 
 (defun my-dash--box-top ()
-  "Top border interior: ─×W (caller wraps with ┌ and ┐)."
+  "Top border interior: -×W (caller wraps with + and +)."
   (my-dash--box-fill))
 
 (defun my-dash--box-mid ()
-  "Mid separator interior: ─×W (caller wraps with ├ and ┤)."
+  "Mid separator interior: -×W (caller wraps with + and +)."
   (my-dash--box-fill))
 
 (defun my-dash--box-bottom ()
-  "Bottom border interior: ─×W (caller wraps with └ and ┘)."
+  "Bottom border interior: -×W (caller wraps with + and +)."
   (my-dash--box-fill))
 
 ;; ---------- Dashboard 配色: Serial Experiments Lain 磷光绿 CRT ----------
@@ -490,21 +499,19 @@ All card rows are padded to the same width, so cards are equal-sized."
 (defconst my-dash--box-border-face (list :foreground my-dash-c-border)
   "Low-contrast dark-green face for all box borders (暗绿).")
 
-(defun my-dash--box-row (text face &optional action right-col)
-  "Render one box row: gray │ border + padded content with FACE.
+(defun my-dash--box-row (text face &optional action)
+  "Render one box row: gray | border + padded content with FACE.
 Content is padded to `my-dash-card-width' - 2 (one space each side),
 so the whole row matches border width (`my-dash-card-width' + 2).
 If ACTION given, only the CONTENT is clickable and highlighted —
-the │ border stays gray on selection.
-RIGHT-COL 非 nil 时右边界 │ 用 :align-to 钉在绝对列 (display spec):
-CJK 全角的实际 advance 与 string-width 的 2:1 假设不一致 (fallback
-中文字体 ≈1.67:1), 字面空格补位会让右边界漂移; 钉列后无论行内是
-什么文字, 右边界都精确对齐."
+the | border stays gray on selection.
+补位为像素实测 (my-dash--pad-right): CJK/图标 fallback 字体的实际
+宽度与 string-width 假设不符, 右边界要精确对齐必须按像素补."
   (let* ((inner (- my-dash-card-width 2))
          (padded (my-dash--pad-right
                   (my-dash--trunc text inner)
                   inner)))
-    (concat (propertize "│ " 'face my-dash--box-border-face)
+    (concat (propertize "| " 'face my-dash--box-border-face)
             (if action
                 (propertize padded
                             'face face
@@ -512,80 +519,76 @@ CJK 全角的实际 advance 与 string-width 的 2:1 假设不一致 (fallback
                              'mouse-face 'highlight
                              'help-echo (format "RET: %s" action))
               (propertize padded 'face face))
-            (if right-col
-                (concat (my-dash--align right-col)
-                        (propertize "│" 'face my-dash--box-border-face))
-              (propertize " │" 'face my-dash--box-border-face)))))
-
-(defun my-dash--insert-card-row (text face &optional action right-col)
-  "Insert `my-dash--box-row' at current point."
-  (insert (my-dash--box-row text face action right-col)))
+            (propertize " |" 'face my-dash--box-border-face))))
 
 (defun my-dash--insert-card-pair (spec1 spec2)
   "Insert two boxed cards side by side, centered as one horizontal group.
 
 SPEC is (ICON LABEL ROWS) where ROWS are (icon display action color).
 
-Layout algorithm (dynamic, window-width independent, unchanged):
-  w1/w2 = actual card widths; gap fixed; total = w1 + gap + w2.
-  Each line's left card starts at `(- center (/ total 2))',
-  right card at `(- center (/ total 2)) + w1 + gap'.
-  `center' is a display-spec symbol resolved against the current
-  window on every redisplay — no resize hook needed."
+Layout (像素实测的确定性布局, 2026-09):
+  每张卡固定 row-w = `my-dash-card-width' + 2 列; 行 = 行1 + gap + 行2;
+  居中 = 行首一个 :width 像素空格 (每次渲染按当前窗口像素宽重算,
+  resize 由 `window-size-change-functions' 钩子触发重排).
+  ⚠️ 不用 :align-to — 混排字体行内 (CJK fallback 实际 ≈1.64 格 ≠ 假设
+  2 格) 其落点不可靠 (实测 121px 错位); 行内容用像素实测补位后字面拼接,
+  边框列由构造保证对齐."
   (cl-destructuring-bind (icon1 label1 rows1) spec1
     (cl-destructuring-bind (icon2 label2 rows2) spec2
-      (let* ((w1 (my-dash--card-width icon1 label1 rows1))
-             (w2 (my-dash--card-width icon2 label2 rows2))
-             (total (+ w1 my-dash-card-gap w2))
-             (half (/ total 2))
-             (col1 `(- center ,half))
-             (col2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap)))
-             ;; 右边界钉列: CJK 行的字面空格补位会漂移, 用 :align-to 钉死
-             (rc1 `(+ (- center ,half) ,(- w1 1)))
-             (rc2 `(+ (- center ,half) ,(+ w1 my-dash-card-gap w2 -1))))
+      (let* ((row-w (+ my-dash-card-width 2))
+             (total (+ row-w my-dash-card-gap row-w))
+             (win (get-buffer-window dashboard-buffer-name 'all-frames))
+             (win-px (if win
+                         (window-body-width win t)
+                       (* 120 (my-dash--cell-px))))
+             (center-px (max 0 (/ (- win-px (* total (my-dash--cell-px))) 2)))
+             (center-sp (my-dash--px-gap center-px))
+             (gap-sp (make-string my-dash-card-gap ?\s)))
         ;; ---- top border ----
-        (my-dash--align col1)
-        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face my-dash--box-border-face))
-        (my-dash--align col2)
-        (insert (propertize (concat "┌" (my-dash--box-top) "┐") 'face my-dash--box-border-face))
+        (insert center-sp)
+        (insert (propertize (concat "+" (my-dash--box-top) "+") 'face my-dash--box-border-face))
+        (insert gap-sp)
+        (insert (propertize (concat "+" (my-dash--box-top) "+") 'face my-dash--box-border-face))
         (insert "\n")
         ;; ---- title row ----
-        (my-dash--align col1)
-        (my-dash--insert-card-row
-         (format "%s %s" (my-dash--icon icon1) label1)
-         (list :foreground my-dash-c-cardhead) nil rc1)
-        (my-dash--align col2)
-        (my-dash--insert-card-row
-         (format "%s %s" (my-dash--icon icon2) label2)
-         (list :foreground my-dash-c-cardhead) nil rc2)
+        (insert center-sp)
+        (insert (my-dash--box-row
+                 (format "%s %s" (my-dash--icon icon1) label1)
+                 (list :foreground my-dash-c-cardhead)))
+        (insert gap-sp)
+        (insert (my-dash--box-row
+                 (format "%s %s" (my-dash--icon icon2) label2)
+                 (list :foreground my-dash-c-cardhead)))
         (insert "\n")
         ;; ---- separator + content rows (height from actual data) ----
         (let ((rows-n (max (length rows1) (length rows2))))
           (when (> rows-n 0)
-            (my-dash--align col1)
-            (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
-            (my-dash--align col2)
-            (insert (propertize (concat "├" (my-dash--box-mid) "┤") 'face my-dash--box-border-face))
+            (insert center-sp)
+            (insert (propertize (concat "+" (my-dash--box-mid) "+") 'face my-dash--box-border-face))
+            (insert gap-sp)
+            (insert (propertize (concat "+" (my-dash--box-mid) "+") 'face my-dash--box-border-face))
             (insert "\n"))
           (dotimes (i rows-n)
             (let ((r1 (nth i rows1))
                   (r2 (nth i rows2)))
-              (my-dash--align col1)
-              (when r1
-                (my-dash--insert-card-row
-                 (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
-                 `(:foreground ,(nth 3 r1)) (nth 2 r1) rc1))
-              (my-dash--align col2)
-              (when r2
-                (my-dash--insert-card-row
-                 (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
-                 `(:foreground ,(nth 3 r2)) (nth 2 r2) rc2))
+              (insert center-sp)
+              (if r1
+                  (insert (my-dash--box-row
+                           (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
+                           `(:foreground ,(nth 3 r1)) (nth 2 r1)))
+                (insert (make-string row-w ?\s)))  ;; 空 slot: 等宽空白, 保持卡 2 列位
+              (insert gap-sp)
+              (if r2
+                  (insert (my-dash--box-row
+                           (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
+                           `(:foreground ,(nth 3 r2)) (nth 2 r2)))
+                (insert (make-string row-w ?\s)))
               (insert "\n"))))
         ;; ---- bottom border ----
-        (my-dash--align col1)
-        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face my-dash--box-border-face))
-        (my-dash--align col2)
-        (insert (propertize (concat "└" (my-dash--box-bottom) "┘") 'face my-dash--box-border-face))
+        (insert center-sp)
+        (insert (propertize (concat "+" (my-dash--box-bottom) "+") 'face my-dash--box-border-face))
+        (insert gap-sp)
+        (insert (propertize (concat "+" (my-dash--box-bottom) "+") 'face my-dash--box-border-face))
         (insert "\n\n")))))
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
@@ -818,35 +821,76 @@ bright-blue color. Both icon and label are clickable."
 
 (defun my-dash-insert-navigator-box ()
   "Render `dashboard-navigator-buttons' inside one centered box.
-Box width = widest button row + 4 (│ + space + content + space + │).
-Top `┐', content `│' and bottom `┘' are all placed via `:align-to'
-at the same right column, so they always line up regardless of any
-glyph width estimation error."
-  (let* ((raw-rows (mapcar #'my-dash--navigator-row dashboard-navigator-buttons))
-         (content-w (apply #'max (mapcar #'string-width raw-rows)))
-         (box-w (+ content-w 4))
-         (half (/ box-w 2))
-         (col `(- center ,half))
-         (right `(+ (- center ,half) ,(1- box-w))))
-    (my-dash--align col)
-    (insert (propertize (concat "┌" (make-string (+ content-w 2) ?─))
-                        'face my-dash--box-border-face))
-    (my-dash--align right)
-    (insert (propertize "┐" 'face my-dash--box-border-face))
-    (insert "\n")
-    (dolist (row raw-rows)
-      (my-dash--align col)
-      (insert (propertize "│ " 'face my-dash--box-border-face))
-      (insert row)
-      (my-dash--align right)
-      (insert (propertize "│" 'face my-dash--box-border-face))
-      (insert "\n"))
-    (my-dash--align col)
-    (insert (propertize (concat "└" (make-string (+ content-w 2) ?─))
-                        'face my-dash--box-border-face))
-    (my-dash--align right)
-    (insert (propertize "┘" 'face my-dash--box-border-face))
-    (insert "\n")))
+自适应流式布局: 12 个按钮按当前窗口实际像素宽度逐个装箱, 放不下自动
+换行 (窄窗口不溢出, 宽窗口自动并 行); 行宽 = 各行实测像素格数最大值,
+每行像素补位对齐, 边框字面拼接 (ASCII 字符, 恒 1 格, 无字体依赖)."
+  (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
+         (cell (my-dash--cell-px))
+         (avail (max 200
+                     (if win
+                         (- (window-body-width win t) (* 6 cell))
+                       (* 100 cell))))
+         (buttons (apply #'append dashboard-navigator-buttons))
+         rows cur cur-px)
+    ;; 流式装箱: 累计宽度超出可用宽度就换行
+    (dolist (btn buttons)
+      (let* ((s (my-dash--navigator-row (list btn)))
+             (px (my-dash--px s))
+             (need (+ px (if cur (* my-dash-card-gap cell) 0))))
+        (when (and cur (> (+ cur-px need) avail))
+          (setq rows (append rows (list (nreverse cur)))
+                cur nil
+                cur-px 0
+                need px))
+        (setq cur (cons s cur)
+              cur-px (+ (or cur-px 0) need))))
+    (when cur
+      (setq rows (append rows (list (nreverse cur)))))
+    (setq rows (nreverse rows))
+    ;; 每行 = 该行按钮串用 gap 空格拼接成的字符串
+    (setq rows (mapcar (lambda (row)
+                         (mapconcat #'identity row
+                                    (make-string my-dash-card-gap ?\s)))
+                       rows))
+    (let* ((cells (mapcar #'my-dash--px-cells rows))
+           (content-w (apply #'max cells))
+           (box-w (+ content-w 4))
+           (win-px (if win (window-body-width win t) (* 120 cell)))
+           (center-px (max 0 (/ (- win-px (* box-w cell)) 2)))
+           (center-sp (my-dash--px-gap center-px))
+           (gap-str (make-string my-dash-card-gap ?\s)))
+      (insert center-sp)
+      (insert (propertize (concat "+" (make-string (+ content-w 2) ?-))
+                          'face my-dash--box-border-face))
+      (insert (propertize "+" 'face my-dash--box-border-face))
+      (insert "\n")
+      (dolist (row rows)
+        (insert center-sp)
+        (insert (propertize "| " 'face my-dash--box-border-face))
+        (insert (my-dash--pad-right row content-w))
+        (insert (propertize " |" 'face my-dash--box-border-face))
+        (insert "\n"))
+      (insert center-sp)
+      (insert (propertize (concat "+" (make-string (+ content-w 2) ?-))
+                          'face my-dash--box-border-face))
+      (insert (propertize "+" 'face my-dash--box-border-face))
+      (insert "\n"))))
+
+;; 窗口尺寸变化 → 重排 (像素居中是渲染时冻结的, resize 后需按新窗宽重算)
+(defvar my-dash--resize-timer nil "resize 防抖 timer.")
+(defun my-dash--resize-rerender (&rest _)
+  (when (and (boundp 'dashboard-buffer-name)
+             (get-buffer dashboard-buffer-name)
+             (get-buffer-window dashboard-buffer-name 'all-frames))
+    (when my-dash--resize-timer (cancel-timer my-dash--resize-timer))
+    (setq my-dash--resize-timer
+          (run-with-timer 0.2 nil
+                          (lambda ()
+                            (when (and (get-buffer dashboard-buffer-name)
+                                       (get-buffer-window dashboard-buffer-name 'all-frames))
+                              (with-current-buffer dashboard-buffer-name
+                                (dashboard-insert-startupify-lists t))))))))
+(add-hook 'window-size-change-functions #'my-dash--resize-rerender)
 
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
 ;; C-c h 随时回到 Dashboard (home)
