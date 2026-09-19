@@ -910,7 +910,7 @@ glyph width estimation error."
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
-  (dashboard-banner-logo-title "Present Day, Present Time.")
+  (dashboard-banner-logo-title "プレゼントデイ、プレゼントタイム。")
   ;; 四模块: recents/projects/agenda/bookmarks (卡片化渲染, 见 my-dash-insert-items)
   (dashboard-items '((recents . 6)
                      (projects . 5)
@@ -920,11 +920,11 @@ glyph width estimation error."
   ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
   (dashboard-path-style 'truncate-beginning)
   (dashboard-path-max-length 40)
-  ;; footer 文案: Lain 语录, 每次启动随机一条, 带 Emacs 版本号
+  ;; footer 文案: Lain 语录 (日文), 每次启动随机一条, 带 Emacs 版本号
   (dashboard-footer-messages
-   (list (format "No matter where you go, everyone's connected. · Emacs %s" emacs-version)
-         (format "And you don't seem to understand... · Emacs %s" emacs-version)
-         (format "Let's all love Lain. · Emacs %s" emacs-version)))
+   (list (format "どこにいても、みんなつながっている。 (Emacs %s)" emacs-version)
+         (format "シリアルエクスペリメンツレインを愛そう。 (Emacs %s)" emacs-version)
+         (format "ワイヤードにいるときだけ、しあわせ。 (Emacs %s)" emacs-version)))
   (dashboard-startupify-list
    '(dashboard-insert-banner
      dashboard-insert-newline
@@ -962,15 +962,15 @@ glyph width estimation error."
 (defconst my-dash-anim--hold 4 "滚动完一轮后的停留帧数.")
 (defconst my-dash-anim--interval 0.35 "每帧间隔秒数.")
 (defconst my-dash-anim--log
-  '("> lain.exe_ booting"
-    "> layer 07 : connection"
-    "> protocol . . . KNIGHT"
-    "> connecting to the wired"
-    "> handshake . . . . OK"
-    "> no matter where you go,"
-    "> everyone's connected."
-    "> present day, present time.")
-  "滚动日志行 (终端窗口一次显示 4 行).")
+  '("> lain.exe_ 起動中"
+    "> レイヤー 07 : 接続"
+    "> プロトコル . . . ナイト"
+    "> ワイヤードへ接続中"
+    "> ハンドシェイク . . . . OK"
+    "> どこにいても、"
+    "> みんなつながってる。"
+    "> 接続完了。レイン、起動。")
+  "滚动日志行 (终端窗口一次显示 4 行, 日文).")
 (defvar my-dash-anim--noise
   (mapcar (lambda (_)
             (mapconcat (lambda (_)
@@ -987,8 +987,14 @@ glyph width estimation error."
          (n (% n l)))
     (concat (substring s n) (substring s 0 n))))
 
+(defun my-dash-anim--pad (s)
+  "按 display-width 补到内宽 58 (CJK 全角=2 列, 日文行不歪)."
+  (let ((w (string-width s)))
+    (if (>= w my-dash-anim--iw) s
+      (concat s (make-string (- my-dash-anim--iw w) ?\s)))))
+
 (defun my-dash-anim--block (f)
-  "第 F 帧的完整 banner 区块 (10 行, 每行 62 列, 不含 tagline 行)."
+  "第 F 帧的完整 banner 区块 (11 行: bezel+8 内部+bezel+tagline, 62 列)."
   (let* ((n (length my-dash-anim--log))
          (ff (% f (+ n my-dash-anim--hold)))
          (cur (min ff (1- n)))
@@ -1005,24 +1011,26 @@ glyph width estimation error."
      #'identity
      (list
       (concat ".-[ N A V I ]" (make-string (- my-dash-anim--iw 10) ?-) ".")
-      (format "| %-58s |" (my-dash-anim--rot (nth 0 my-dash-anim--noise) f))
-      (format "| %-58s |" "L A I N   E X P E R I M E N T S")
-      (format "| %-58s |" (nth 0 log-rows))
-      (format "| %-58s |" (nth 1 log-rows))
-      (format "| %-58s |" (nth 2 log-rows))
-      (format "| %-58s |" (nth 3 log-rows))
-      (format "| %-58s |" (my-dash-anim--rot (nth 1 my-dash-anim--noise) f))
-      (format "| %-58s |" "")
-      "'------------------------------------------------------------'")
+      (concat "| " (my-dash-anim--pad (my-dash-anim--rot (nth 0 my-dash-anim--noise) f)) " |")
+      (concat "| " (my-dash-anim--pad "シリアルエクスペリメンツレイン") " |")
+      (concat "| " (my-dash-anim--pad (nth 0 log-rows)) " |")
+      (concat "| " (my-dash-anim--pad (nth 1 log-rows)) " |")
+      (concat "| " (my-dash-anim--pad (nth 2 log-rows)) " |")
+      (concat "| " (my-dash-anim--pad (nth 3 log-rows)) " |")
+      (concat "| " (my-dash-anim--pad (my-dash-anim--rot (nth 1 my-dash-anim--noise) f)) " |")
+      (concat "| " (my-dash-anim--pad "") " |")
+      (concat "'" (make-string 60 ?-) "'")
+      (concat "  " (my-dash-anim--pad "世界を閉じて、次の世界を開く。") "  "))
      "\n")))
 
 (defun my-dash-anim--locate ()
-  "按锚点重新定位 banner 区块 (bezel 顶行行首 → bezel 底行行尾)."
+  "按锚点重新定位 banner 区块 (bezel 顶行行首 → tagline 行尾)."
   (save-excursion
     (goto-char (point-min))
     (when (search-forward ".-[ N A V I ]" nil t)
       (let ((beg (progn (beginning-of-line) (point-marker))))
         (when (re-search-forward "^'--" nil t)
+          (forward-line 1)                       ; → tagline 行
           (setq my-dash-anim--beg beg
                 my-dash-anim--end (progn (end-of-line) (point-marker))))))))
 
@@ -1044,14 +1052,21 @@ glyph width estimation error."
                (marker-buffer my-dash-anim--beg))
       (let* ((wins (get-buffer-window-list (current-buffer) nil 'all-frames))
              (pts (mapcar #'window-point wins))
+             (win (car wins))
+             ;; 居中: 每帧按 dashboard 窗口宽重算 → 缩放自适应
+             (w (if win (window-width win) 100))
+             (cpad (make-string (max 0 (/ (- w 62) 2)) ?\s))
+             (block (mapconcat (lambda (ln) (concat cpad ln))
+                               (split-string
+                                (my-dash-anim--block my-dash-anim--frame) "\n")
+                               "\n"))
              (inhibit-read-only t)
              (inhibit-modification-hooks t)
              (buffer-undo-list t))
         (save-excursion
           (delete-region my-dash-anim--beg my-dash-anim--end)
           (goto-char my-dash-anim--beg)
-          (insert (propertize (my-dash-anim--block my-dash-anim--frame)
-                              'face 'dashboard-text-banner))
+          (insert (propertize block 'face 'dashboard-text-banner))
           (set-marker my-dash-anim--end (point)))
         ;; 区块每帧几何一致 → 各窗口 point 原偏移恢复
         (cl-mapcar (lambda (w p)
