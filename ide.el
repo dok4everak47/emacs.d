@@ -472,23 +472,23 @@ All card rows are padded to the same width, so cards are equal-sized."
   "Bottom border interior: ─×W (caller wraps with └ and ┘)."
   (my-dash--box-fill))
 
-;; ---------- Dashboard 配色: 昭和レトロ/シティポップ黄昏色系 ----------
+;; ---------- Dashboard 配色: Serial Experiments Lain 磷光绿 CRT ----------
 ;; 改色只动这组变量 (引用点: 卡片边框/卡片标题/四类内容行/导航按钮/占位);
 ;; 主标题和 footer 两个 face 在下方 use-package dashboard 的 :custom-face
 ;; 里, 那两处是字面量, 换色时需手动同步。
-(defconst my-dash-c-title    "#ff9e64" "主标题/落日橙 (夕焼けオレンジ).")
-(defconst my-dash-c-border   "#8a7a99" "卡片边框/夕暮れ紫 (低饱和, 保持安静).")
-(defconst my-dash-c-cardhead "#ff7a93" "卡片标题/珊瑚粉.")
-(defconst my-dash-c-recent   "#a6d189" "最近文件行/若叶绿.")
-(defconst my-dash-c-project  "#bb9af7" "项目行/藤紫.")
-(defconst my-dash-c-agenda   "#ff9e64" "日程行/落日橙 (与主标题同色).")
-(defconst my-dash-c-idle     "#6e6258" "占位文案/暖灰.")
-(defconst my-dash-c-bookmark "#4fd6be" "书签行/浅葱青.")
-(defconst my-dash-c-button   "#ffd9a0" "导航按钮/奶油金.")
-(defconst my-dash-c-footer   "#d9a0b0" "页脚/淡樱.")
+(defconst my-dash-c-title    "#5cff87" "主标题/磷光绿 (CRT P1 荧光).")
+(defconst my-dash-c-border   "#31543c" "卡片边框/暗绿 (低亮度, 保持安静).")
+(defconst my-dash-c-cardhead "#e6f2e8" "卡片标题/窗白 (Lain UI 窗口文字).")
+(defconst my-dash-c-recent   "#7be8a0" "最近文件行/浅磷光绿.")
+(defconst my-dash-c-project  "#6fd0e8" "项目行/CRT 青.")
+(defconst my-dash-c-agenda   "#ffc46b" "日程行/琥珀 (amber 磷光).")
+(defconst my-dash-c-idle     "#4a5c4e" "占位文案/暗灰绿.")
+(defconst my-dash-c-bookmark "#b79bff" "书签行/电紫.")
+(defconst my-dash-c-button   "#5cff87" "导航按钮/磷光绿 (与主标题同色).")
+(defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
 
 (defconst my-dash--box-border-face (list :foreground my-dash-c-border)
-  "Low-contrast dusk-purple face for all box borders (夕暮れ紫).")
+  "Low-contrast dark-green face for all box borders (暗绿).")
 
 (defun my-dash--box-row (text face &optional action)
   "Render one box row: gray │ border + padded content with FACE.
@@ -903,14 +903,14 @@ glyph width estimation error."
             (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
-  ;; ASCII banner: 复古落日+网格地平线 (自绘, ~/.emacs.d/banners/; 终端 -nw 也显示)
-  (dashboard-startup-banner (expand-file-name "banners/retro-sunset.txt"
+  ;; ASCII banner: Lain CRT 终端 (自绘, ~/.emacs.d/banners/; 终端 -nw 也显示)
+  (dashboard-startup-banner (expand-file-name "banners/lain-navi.txt"
                                               user-emacs-directory))
   (dashboard-set-heading-icons t)
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
-  (dashboard-banner-logo-title "ようこそ、Emacs の世界へ")
+  (dashboard-banner-logo-title "Present Day, Present Time.")
   ;; 四模块: recents/projects/agenda/bookmarks (卡片化渲染, 见 my-dash-insert-items)
   (dashboard-items '((recents . 6)
                      (projects . 5)
@@ -920,11 +920,11 @@ glyph width estimation error."
   ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
   (dashboard-path-style 'truncate-beginning)
   (dashboard-path-max-length 40)
-  ;; footer 文案: 日式复古动画风语录, 每次启动随机一条, 带 Emacs 版本号
+  ;; footer 文案: Lain 语录, 每次启动随机一条, 带 Emacs 版本号
   (dashboard-footer-messages
-   (list (format "本日もハッピーハッキング！ · Emacs %s" emacs-version)
-         (format "銀河を駆けるキーボード · Emacs %s" emacs-version)
-         (format "昭和レトロ、令和エディタ · Emacs %s" emacs-version)))
+   (list (format "No matter where you go, everyone's connected. · Emacs %s" emacs-version)
+         (format "And you don't seem to understand... · Emacs %s" emacs-version)
+         (format "Let's all love Lain. · Emacs %s" emacs-version)))
   (dashboard-startupify-list
    '(dashboard-insert-banner
      dashboard-insert-newline
@@ -938,12 +938,24 @@ glyph width estimation error."
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题: 落日橙 + 放大加粗 (色值与 my-dash-c-title 一致, 换色需同步)
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#ff9e64"))))
-  ;; footer: 淡樱斜体 (色值与 my-dash-c-footer 一致)
-  (dashboard-footer-face ((t (:foreground "#d9a0b0" :slant italic))))
-  ;; ASCII banner (落日+网格): 落日橙 (色值与 my-dash-c-title 一致)
-  (dashboard-text-banner ((t (:foreground "#ff9e64")))))
+  ;; 标题: 磷光绿 + 放大加粗 (色值与 my-dash-c-title 一致, 换色需同步)
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87"))))
+  ;; footer: 暗磷光绿斜体 (色值与 my-dash-c-footer 一致)
+  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic))))
+  ;; ASCII banner (Lain CRT): 磷光绿 (色值与 my-dash-c-title 一致)
+  (dashboard-text-banner ((t (:foreground "#5cff87")))))
+
+;; Lain 点阵字体 DotGothic16: 只作用于 dashboard buffer (buffer-local face
+;; remap), 不动全局 SpaceMono。字体由 nix-darwin fonts.packages 安装
+;; (modules/system/fonts.nix); 未装/终端环境自动跳过。
+;; ⚠️ 卡片对齐依赖 ─│ 在该字体下保持窄字符 — 若实测变宽, 把 remap 收窄到
+;; 标题/footer 两个 face (见 skill emacs-dashboard)。
+(add-hook 'dashboard-mode-hook
+          (lambda ()
+            (when (and (display-graphic-p)
+                       (member "DotGothic16" (font-family-list)))
+              (setq-local face-remapping-alist
+                          '((default :family "DotGothic16" :height 1.15))))))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
