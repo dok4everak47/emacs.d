@@ -956,8 +956,7 @@ glyph width estimation error."
 (require 'cl-lib)
 (defvar my-dash-anim-timer nil "banner 动画 timer (重复, 见 `my-dash-anim--interval').")
 (defvar my-dash-anim--frame 0 "当前帧序号 (tick 自增, block 内取模).")
-(defvar my-dash-anim--beg nil "banner 区块起始 marker (bezel 顶行行首).")
-(defvar my-dash-anim--end nil "banner 区块结束 marker (bezel 底行行尾).")
+(defvar my-dash-anim--ov nil "banner 区块 overlay (display 属性承载动画帧).")
 (defconst my-dash-anim--iw 58 "NAVI 屏幕内宽 (bezel 内部列数).")
 (defconst my-dash-anim--hold 4 "滚动完一轮后的停留帧数.")
 (defconst my-dash-anim--interval 0.35 "每帧间隔秒数.")
@@ -1024,61 +1023,54 @@ glyph width estimation error."
      "\n")))
 
 (defun my-dash-anim--locate ()
-  "按锚点重新定位 banner 区块 (bezel 顶行行首 → tagline 行尾)."
-  (save-excursion
-    (goto-char (point-min))
-    (when (search-forward ".-[ N A V I ]" nil t)
-      (let ((beg (progn (beginning-of-line) (point-marker))))
-        (when (re-search-forward "^'--" nil t)
-          (forward-line 1)                       ; → tagline 行
-          (setq my-dash-anim--beg beg
-                my-dash-anim--end (progn (end-of-line) (point-marker))))))))
+  "按锚点重建 banner 区块 overlay (bezel 顶行 → tagline 行)."
+  (with-current-buffer (get-buffer dashboard-buffer-name)
+    (save-excursion
+      (goto-char (point-min))
+      (when (search-forward ".-[ N A V I ]" nil t)
+        (let ((beg (progn (beginning-of-line) (point))))
+          (when (re-search-forward "^'--" nil t)
+            (forward-line 1)                     ; → tagline 行
+            (end-of-line)
+            (when (overlayp my-dash-anim--ov) (delete-overlay my-dash-anim--ov))
+            (setq my-dash-anim--ov (make-overlay beg (point)))
+            (overlay-put my-dash-anim--ov 'evaporate t)))))))
 
 (defun my-dash-anim--draw ()
-  "重绘一帧 (不含可见性检查; marker 失效先自愈重定位)."
+  "重绘一帧: 只更新 overlay 的 display 属性 (零 buffer 修改, 不干扰滚动)."
   (with-current-buffer (get-buffer dashboard-buffer-name)
-    ;; 自愈: marker 失效/锚点不在 → 重新定位
-    ;; (re-render 时 erase-buffer 会把 marker 折叠到 point-min 成零宽度,
-    ;;  且 banner 前有换行, 锚点字符串可能落在前 13 字符内造成假命中 —
-    ;;  所以零宽度/非行首/行首非 "." 都视为失效)
-    (unless (and (markerp my-dash-anim--beg) (markerp my-dash-anim--end)
-                 (marker-buffer my-dash-anim--beg)
-                 (/= my-dash-anim--beg my-dash-anim--end)
+    ;; 自愈: overlay 失效 (re-render erase → evaporate) → 重建
+    ;; (锚点校验: 区块起始必须在行首且为 "." , 防折叠假命中)
+    (unless (and (overlayp my-dash-anim--ov)
+                 (overlay-buffer my-dash-anim--ov)
                  (save-excursion
-                   (goto-char my-dash-anim--beg)
+                   (goto-char (overlay-start my-dash-anim--ov))
                    (and (bolp) (eq (char-after) ?.))))
       (my-dash-anim--locate))
-    (when (and (markerp my-dash-anim--beg) (markerp my-dash-anim--end)
-               (marker-buffer my-dash-anim--beg))
-      (let* ((wins (get-buffer-window-list (current-buffer) nil 'all-frames))
-             (pts (mapcar #'window-point wins))
-             (win (car wins))
+    (when (and (overlayp my-dash-anim--ov) (overlay-buffer my-dash-anim--ov))
+      (let* ((win (car (get-buffer-window-list (current-buffer) nil 'all-frames)))
              ;; 居中: 每帧按 dashboard 窗口宽重算 → 缩放自适应
              (w (if win (window-width win) 100))
              (cpad (make-string (max 0 (/ (- w 62) 2)) ?\s))
              (block (mapconcat (lambda (ln) (concat cpad ln))
                                (split-string
                                 (my-dash-anim--block my-dash-anim--frame) "\n")
-                               "\n"))
-             (inhibit-read-only t)
-             (inhibit-modification-hooks t)
-             (buffer-undo-list t))
-        (save-excursion
-          (delete-region my-dash-anim--beg my-dash-anim--end)
-          (goto-char my-dash-anim--beg)
-          (insert (propertize block 'face 'dashboard-text-banner))
-          (set-marker my-dash-anim--end (point)))
-        ;; 区块每帧几何一致 → 各窗口 point 原偏移恢复
-        (cl-mapcar (lambda (w p)
-                     (when (window-live-p w) (set-window-point w p)))
-                   wins pts)
+                               "\n")))
+        (overlay-put my-dash-anim--ov 'display
+                     (propertize block 'face 'dashboard-text-banner))
         (setq my-dash-anim--frame (1+ my-dash-anim--frame))))))
 
 (defun my-dash-anim--tick ()
-  "动画 tick: dashboard 可见时才重绘 (不可见近零开销)."
-  (when (and (get-buffer dashboard-buffer-name)
-             (get-buffer-window dashboard-buffer-name 'all-frames))
-    (my-dash-anim--draw)))
+  "动画 tick: dashboard 可见且 banner 未滚出视野才重绘 (拖滚动条零干扰)."
+  (let ((buf (get-buffer dashboard-buffer-name)))
+    (when (and buf
+               (get-buffer-window buf 'all-frames)
+               (or (not (overlayp my-dash-anim--ov))
+                   (not (overlay-buffer my-dash-anim--ov))
+                   (let ((win (car (get-buffer-window-list buf nil 'all-frames))))
+                     (when win
+                       (< (window-start win) (overlay-end my-dash-anim--ov))))))
+      (my-dash-anim--draw))))
 
 (when (timerp my-dash-anim-timer) (cancel-timer my-dash-anim-timer))
 (setq my-dash-anim-timer
