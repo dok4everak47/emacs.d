@@ -642,24 +642,51 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
                  'keymap km 'help-echo help))))
 
 (defun my-dash--navigator-flow ()
-  "导航按钮按窗口实际像素宽流式分行 (窄窗口自动换行, 不溢出)."
+  "导航按钮流式分行: 行数取窗口宽下最少行, 各行像素长度均衡 (等长)."
   (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
          (cell (if (display-graphic-p) (frame-char-width) 11))
          (avail (max 200 (if win
                              (- (window-body-width win t) (* 4 cell))
                            (* 90 cell))))
          (buttons (apply #'append dashboard-navigator-buttons))
-         rows cur cur-px)
-    (dolist (btn buttons)
-      (let* ((s (my-dash--navigator-btn btn))
-             (px (string-pixel-width s))
-             (need (+ px (if cur (* my-dash-card-gap cell) 0))))
-        (when (and cur (> (+ (or cur-px 0) need) avail))
-          (setq rows (append rows (list (nreverse cur)))
-                cur nil cur-px 0 need px))
-        (setq cur (cons s cur) cur-px (+ (or cur-px 0) need))))
-    (when cur
-      (setq rows (append rows (list (nreverse cur)))))
+         (strs (mapcar #'my-dash--navigator-btn buttons))
+         (pxs (mapcar #'string-pixel-width strs))
+         (gaps (* my-dash-card-gap cell))
+         (total (+ (apply #'+ pxs) (* (1- (length pxs)) gaps)))
+         ;; 行数 = 贪心装箱的最少可行行数
+         (n (let ((k 1) (row (car pxs)))
+              (dolist (p (cdr pxs) k)
+                (let ((need (+ row gaps p)))
+                  (if (> need avail)
+                      (setq k (1+ k) row p)
+                    (setq row need))))))
+         (rows-left n)
+         (rem (length pxs))
+         (alloc 0)
+         (tgt (if (> n 1) (/ total (float n)) total))
+         rows cur-strs cur-px)
+    ;; 均衡装箱: 超出窗口宽强制换行; 未超但已达均分目标且剩余按钮
+    ;; 够分给剩余行时也换行 → 各行长度对齐
+    (dotimes (i (length strs))
+      (let* ((s (nth i strs))
+             (p (nth i pxs))
+             (need (+ p (if cur-strs gaps 0))))
+        (when (and cur-strs
+                   (> rows-left 1)
+                   (or (> (+ cur-px need) avail)
+                       (and (> (+ cur-px need) tgt)
+                            (>= rem (1- rows-left)))))
+          (setq rows (append rows (list (nreverse cur-strs)))
+                alloc (+ alloc cur-px)
+                rows-left (1- rows-left)
+                tgt (/ (- total alloc) (float rows-left))
+                cur-strs nil cur-px 0
+                need p))
+        (setq cur-strs (cons s cur-strs)
+              cur-px (+ (or cur-px 0) need)
+              rem (1- rem))))
+    (when cur-strs
+      (setq rows (append rows (list (nreverse cur-strs)))))
     (setq rows (nreverse rows))
     (mapcar (lambda (row)
               (mapconcat #'identity row (make-string my-dash-card-gap ?\s)))
