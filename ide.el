@@ -611,7 +611,8 @@ card always reflects the latest activity."
     (setq my-dash--cache nil)
     (when (get-buffer-window dashboard-buffer-name)
       (with-current-buffer dashboard-buffer-name
-        (dashboard-insert-startupify-lists t)))))
+        (dashboard-insert-startupify-lists t)
+        (my-dash--fixup-deferred)))))
 (add-hook 'find-file-hook #'my-dash--on-recentf-changed)
 (add-hook 'kill-buffer-hook #'my-dash--on-recentf-changed)
 
@@ -889,8 +890,75 @@ bright-blue color. Both icon and label are clickable."
                             (when (and (get-buffer dashboard-buffer-name)
                                        (get-buffer-window dashboard-buffer-name 'all-frames))
                               (with-current-buffer dashboard-buffer-name
-                                (dashboard-insert-startupify-lists t))))))))
+                                (dashboard-insert-startupify-lists t)
+                                (my-dash--fixup-boxes))))))))
 (add-hook 'window-size-change-functions #'my-dash--resize-rerender)
+
+;; ---------- 二遍像素校正: 归零图标/亚像素测量误差 ----------
+(defun my-dash--tpx (win from to)
+  "WIN 中 FROM..TO 文本的实际渲染像素宽 (兼容返回形状差异)."
+  (let ((r (ignore-errors (window-text-pixel-size win from to))))
+    (cond ((and (consp r) (numberp (car r)) (numberp (cdr r))) (car r))
+          ((and (consp r) (>= (safe-length r) 3) (numberp (nth 2 r)))
+           (nth 2 r))
+          (t nil))))
+
+(defun my-dash--fixup-boxes ()
+  "二遍像素校正: 量每张卡「左边框→右边框」的实际渲染像素宽, 与相邻
+边框行同列角距的差 → 微调该卡补位空格的 :width.  归零 string-pixel-width
+与实际渲染的误差 (图标 context 内变窄等).  window-text-pixel-size 支持
+屏幕外文本 (折叠区同样校正); 幂等: 差→0 后不再改动."
+  (let ((win (get-buffer-window dashboard-buffer-name 'all-frames)))
+    (when win
+      (with-current-buffer dashboard-buffer-name
+        (save-excursion
+          (goto-char (point-min))
+          (let (ref)               ; 最近边框行: ((左+ 右+ 宽px) 每卡一项)
+            (while (not (eobp))
+              (let* ((bol (line-beginning-position))
+                     (eol (line-end-position))
+                     (ch (char-after bol)))
+                (cond
+                 ((eq ch ?+)
+                  (let ((p bol) (prev bol) (i 0) cells)
+                    (while (< p eol)
+                      (when (eq (char-after p) ?+)
+                        (when (> i 0)
+                          (push (list prev p (my-dash--tpx win prev p)) cells))
+                        (setq prev p i (1+ i)))
+                      (setq p (1+ p)))
+                    (setq ref (nreverse cells))))
+                 ((eq ch ?|)
+                  (let ((p bol) (prev bol) (i 0))
+                    (while (< p eol)
+                      (when (eq (char-after p) ?|)
+                        (when (> i 0)
+                          (let* ((w (my-dash--tpx win prev p))
+                                 (card (nth (1- i) ref))
+                                 (tgt (nth 2 card)))
+                            (when (and w tgt)
+                              (let ((delta (- tgt w)))
+                                (when (>= (abs delta) 2)
+                                  (let* ((pad-p (- p 2))
+                                         (d (get-text-property pad-p 'display)))
+                                    (when (and (consp d) (eq (car d) 'space))
+                                      (let ((wd (plist-get (cdr d) :width)))
+                                        (when (numberp wd)
+                                          (put-text-property
+                                           pad-p (1+ pad-p) 'display
+                                           (list 'space :width
+                                                 (+ wd (/ (float delta)
+                                                          (my-dash--cell-px)))))))))))))
+                          (setq prev p i (1+ i)))
+                      (setq p (1+ p)))))))
+                (forward-line 1)))))))))
+
+(defvar my-dash--fixup-timer nil "二遍校正防抖 timer.")
+(defun my-dash--fixup-deferred ()
+  (when my-dash--fixup-timer (cancel-timer my-dash--fixup-timer))
+  (setq my-dash--fixup-timer
+        (run-with-timer 0.05 nil #'my-dash--fixup-boxes)))
+(add-hook 'dashboard-after-initialize-hook #'my-dash--fixup-deferred)
 
 ;; ---------- Dashboard 导航页 (emacs-dashboard 包, 参考 condy0919) ----------
 ;; C-c h 随时回到 Dashboard (home)
