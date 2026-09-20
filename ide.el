@@ -384,10 +384,19 @@
     ["关闭 LSP" lsp-shutdown-workspace t]
     ["运行 Rust 文件/项目 (C-c C-r)" my-rust-run t]))
 
-;; ---------- Dashboard 四模块卡片化 (svg-lib + :align-to 动态居中) ----------
-(defconst my-dash-card-width 28 "Uniform content width in chars per card row.")
-(defconst my-dash-card-rows 5 "Max content rows per card.")
-(defconst my-dash-card-gap 4 "Horizontal gap between two cards, in cols.")
+;; ---------- Dashboard 极简留白: 分区标题 + 纯列表, 无框线 (CJK 对齐问题从根上消失) ----------
+;; 调色: Lain 磷光绿系 (无框线版本, 颜色只做点缀)
+(defconst my-dash-c-title    "#5cff87" "主标题/磷光绿 (CRT P1 荧光).")
+(defconst my-dash-c-cardhead "#e6f2e8" "分区标题/窗白 (Lain UI 窗口文字).")
+(defconst my-dash-c-recent   "#7be8a0" "最近文件行/浅磷光绿.")
+(defconst my-dash-c-project  "#6fd0e8" "项目行/CRT 青.")
+(defconst my-dash-c-agenda   "#ffc46b" "日程行/琥珀 (amber 磷光).")
+(defconst my-dash-c-idle     "#4a5c4e" "占位文案/暗灰绿.")
+(defconst my-dash-c-bookmark "#b79bff" "书签行/电紫.")
+(defconst my-dash-c-button   "#5cff87" "导航按钮/磷光绿 (与主标题同色).")
+(defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
+(defconst my-dash-card-rows 5 "Max content rows per section.")
+(defconst my-dash-card-gap 4 "Horizontal gap between nav buttons, in cols.")
 
 (defvar my-dash--cache nil
   "Cached dashboard data: (recents projects agenda bookmarks).")
@@ -430,166 +439,6 @@ ACTION is a Lisp form (eval'd) or a function (funcall'd)."
       (lambda (&rest _) (interactive)
         (if (functionp action) (funcall action) (eval action))))
     map))
-
-(defun my-dash--cell-px ()
-  "当前 canonical 格宽 (px); batch/无 GUI 时回退 11."
-  (or (and (display-graphic-p) (frame-char-width)) 11))
-
-(defun my-dash--px (s)
-  "字符串 S 的实际渲染像素宽 (含 face/display 影响)."
-  (or (ignore-errors (string-pixel-width s))
-      ;; batch/异常回退: string-width × 格宽 (近似)
-      (* (string-width s) (my-dash--cell-px))))
-
-(defun my-dash--px-cells (s)
-  "字符串 S 的实际显示宽度, 单位 = 格 (向上取整)."
-  (ceiling (/ (float (my-dash--px s)) (my-dash--cell-px))))
-
-(defun my-dash--px-gap (px)
-  "PX 像素宽的定宽空格 (:width 小数格, 亚像素精确, 字体 fallback 免疫).
-:align-to 在混排字体行内按理想列数落点, fallback 字体实际更窄时钉列失效
-(2026-09 实测 121px 错位); 定宽 :width 空格不依赖前置文本的字体度量."
-  (if (> px 0)
-      (propertize " " 'display
-                  (list 'space :width (/ (float px) (my-dash--cell-px))))
-    ""))
-
-(defun my-dash--pad-right (str width)
-  "把 STR 补到 WIDTH 格: 像素实测, 尾部用 :width 像素空格精确补齐.
-(原 string-width 版假设 CJK=2 格, 但 fallback 中文字体实际 ≈1.64 格,
-字面空格补位会让右边框漂移 — 像素实测版对任何字体都精确.)"
-  (let* ((px (my-dash--px str))
-         (target (* width (my-dash--cell-px)))
-         (gap (- target px)))
-    (if (> gap 0)
-        (concat str (my-dash--px-gap gap))
-      str)))
-
-(defun my-dash--box-fill ()
-  "Horizontal box filler: - repeated to card content width."
-  (make-string my-dash-card-width ?-))
-
-(defun my-dash--box-top ()
-  "Top border interior: -×W (caller wraps with + and +)."
-  (my-dash--box-fill))
-
-(defun my-dash--box-mid ()
-  "Mid separator interior: -×W (caller wraps with + and +)."
-  (my-dash--box-fill))
-
-(defun my-dash--box-bottom ()
-  "Bottom border interior: -×W (caller wraps with + and +)."
-  (my-dash--box-fill))
-
-;; ---------- Dashboard 配色: Serial Experiments Lain 磷光绿 CRT ----------
-;; 改色只动这组变量 (引用点: 卡片边框/卡片标题/四类内容行/导航按钮/占位);
-;; 主标题和 footer 两个 face 在下方 use-package dashboard 的 :custom-face
-;; 里, 那两处是字面量, 换色时需手动同步。
-(defconst my-dash-c-title    "#5cff87" "主标题/磷光绿 (CRT P1 荧光).")
-(defconst my-dash-c-border   "#31543c" "卡片边框/暗绿 (低亮度, 保持安静).")
-(defconst my-dash-c-cardhead "#e6f2e8" "卡片标题/窗白 (Lain UI 窗口文字).")
-(defconst my-dash-c-recent   "#7be8a0" "最近文件行/浅磷光绿.")
-(defconst my-dash-c-project  "#6fd0e8" "项目行/CRT 青.")
-(defconst my-dash-c-agenda   "#ffc46b" "日程行/琥珀 (amber 磷光).")
-(defconst my-dash-c-idle     "#4a5c4e" "占位文案/暗灰绿.")
-(defconst my-dash-c-bookmark "#b79bff" "书签行/电紫.")
-(defconst my-dash-c-button   "#5cff87" "导航按钮/磷光绿 (与主标题同色).")
-(defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
-
-(defconst my-dash--box-border-face (list :foreground my-dash-c-border)
-  "Low-contrast dark-green face for all box borders (暗绿).")
-
-(defun my-dash--box-row (text face &optional action)
-  "Render one box row: gray | border + padded content with FACE.
-Content is padded to `my-dash-card-width' - 2 (one space each side),
-so the whole row matches border width (`my-dash-card-width' + 2).
-If ACTION given, only the CONTENT is clickable and highlighted —
-the | border stays gray on selection.
-补位为像素实测 (my-dash--pad-right): CJK/图标 fallback 字体的实际
-宽度与 string-width 假设不符, 右边界要精确对齐必须按像素补."
-  (let* ((inner (- my-dash-card-width 2))
-         (padded (my-dash--pad-right
-                  (my-dash--trunc text inner)
-                  inner)))
-    (concat (propertize "| " 'face my-dash--box-border-face)
-            (if action
-                (propertize padded
-                            'face face
-'keymap (my-dash--click-map action)
-                             'mouse-face 'highlight
-                             'help-echo (format "RET: %s" action))
-              (propertize padded 'face face))
-            (propertize " |" 'face my-dash--box-border-face))))
-
-(defun my-dash--insert-card-pair (spec1 spec2)
-  "Insert two boxed cards side by side, centered as one horizontal group.
-
-SPEC is (ICON LABEL ROWS) where ROWS are (icon display action color).
-
-Layout (像素实测的确定性布局, 2026-09):
-  每张卡固定 row-w = `my-dash-card-width' + 2 列; 行 = 行1 + gap + 行2;
-  居中 = 行首一个 :width 像素空格 (每次渲染按当前窗口像素宽重算,
-  resize 由 `window-size-change-functions' 钩子触发重排).
-  ⚠️ 不用 :align-to — 混排字体行内 (CJK fallback 实际 ≈1.64 格 ≠ 假设
-  2 格) 其落点不可靠 (实测 121px 错位); 行内容用像素实测补位后字面拼接,
-  边框列由构造保证对齐."
-  (cl-destructuring-bind (icon1 label1 rows1) spec1
-    (cl-destructuring-bind (icon2 label2 rows2) spec2
-      (let* ((row-w (+ my-dash-card-width 2))
-             (total (+ row-w my-dash-card-gap row-w))
-             (win (get-buffer-window dashboard-buffer-name 'all-frames))
-             (win-px (if win
-                         (window-body-width win t)
-                       (* 120 (my-dash--cell-px))))
-             (center-px (max 0 (/ (- win-px (* total (my-dash--cell-px))) 2)))
-             (center-sp (my-dash--px-gap center-px))
-             (gap-sp (make-string my-dash-card-gap ?\s)))
-        ;; ---- top border ----
-        (insert center-sp)
-        (insert (propertize (concat "+" (my-dash--box-top) "+") 'face my-dash--box-border-face))
-        (insert gap-sp)
-        (insert (propertize (concat "+" (my-dash--box-top) "+") 'face my-dash--box-border-face))
-        (insert "\n")
-        ;; ---- title row ----
-        (insert center-sp)
-        (insert (my-dash--box-row
-                 (format "%s %s" (my-dash--icon icon1) label1)
-                 (list :foreground my-dash-c-cardhead)))
-        (insert gap-sp)
-        (insert (my-dash--box-row
-                 (format "%s %s" (my-dash--icon icon2) label2)
-                 (list :foreground my-dash-c-cardhead)))
-        (insert "\n")
-        ;; ---- separator + content rows (height from actual data) ----
-        (let ((rows-n (max (length rows1) (length rows2))))
-          (when (> rows-n 0)
-            (insert center-sp)
-            (insert (propertize (concat "+" (my-dash--box-mid) "+") 'face my-dash--box-border-face))
-            (insert gap-sp)
-            (insert (propertize (concat "+" (my-dash--box-mid) "+") 'face my-dash--box-border-face))
-            (insert "\n"))
-          (dotimes (i rows-n)
-            (let ((r1 (nth i rows1))
-                  (r2 (nth i rows2)))
-              (insert center-sp)
-              (if r1
-                  (insert (my-dash--box-row
-                           (format "%s %s" (my-dash--icon (nth 0 r1)) (nth 1 r1))
-                           `(:foreground ,(nth 3 r1)) (nth 2 r1)))
-                (insert (make-string row-w ?\s)))  ;; 空 slot: 等宽空白, 保持卡 2 列位
-              (insert gap-sp)
-              (if r2
-                  (insert (my-dash--box-row
-                           (format "%s %s" (my-dash--icon (nth 0 r2)) (nth 1 r2))
-                           `(:foreground ,(nth 3 r2)) (nth 2 r2)))
-                (insert (make-string row-w ?\s)))
-              (insert "\n"))))
-        ;; ---- bottom border ----
-        (insert center-sp)
-        (insert (propertize (concat "+" (my-dash--box-bottom) "+") 'face my-dash--box-border-face))
-        (insert gap-sp)
-        (insert (propertize (concat "+" (my-dash--box-bottom) "+") 'face my-dash--box-border-face))
-        (insert "\n\n")))))
 
 ;; ---------- Dashboard 数据源 (recents/projects/agenda/bookmarks) ----------
 (defun my-dash--recents-data ()
@@ -764,119 +613,120 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
               (my-dash--bookmarks-data)))
   (my-dash--agenda-load-async))
 
-(defun my-dash-insert-items ()
-  "Render 2×2 card grid: recents/projects/agenda/bookmarks."
+(defun my-dash--insert-block (lines)
+  "把 LINES (字符串列表) 作为整块按最宽行居中插入 (无框线, 误差不可见)."
+  (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
+         (ww (if win (window-width win) 80))
+         (w (apply #'max (mapcar #'string-width lines)))
+         (pad (make-string (max 0 (/ (- ww w) 2)) ?\s)))
+    (dolist (l lines)
+      (insert (if (equal l "") "\n" (concat pad l "\n"))))))
+
+(defun my-dash--navigator-btn (btn)
+  "渲染单个导航按钮: icon (已是字形串) + label, 可点击, 磷光绿."
+  (let ((icon (car btn)) (title (cadr btn))
+        (help (caddr btn)) (action (cadddr btn)))
+    (concat
+     (propertize icon 'face my-dash-c-button
+                 'keymap (my-dash--click-map action) 'mouse-face 'highlight
+                 'help-echo help)
+     " "
+     (propertize title 'face my-dash-c-button
+                 'keymap (my-dash--click-map action) 'mouse-face 'highlight
+                 'help-echo help))))
+
+(defun my-dash--navigator-flow ()
+  "导航按钮按窗口实际像素宽流式分行 (窄窗口自动换行, 不溢出)."
+  (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
+         (cell (if (display-graphic-p) (frame-char-width) 11))
+         (avail (max 200 (if win
+                             (- (window-body-width win t) (* 4 cell))
+                           (* 90 cell))))
+         (buttons (apply #'append dashboard-navigator-buttons))
+         rows cur cur-px)
+    (dolist (btn buttons)
+      (let* ((s (my-dash--navigator-btn btn))
+             (px (string-pixel-width s))
+             (need (+ px (if cur (* my-dash-card-gap cell) 0))))
+        (when (and cur (> (+ (or cur-px 0) need) avail))
+          (setq rows (append rows (list (nreverse cur)))
+                cur nil cur-px 0 need px))
+        (setq cur (cons s cur) cur-px (+ (or cur-px 0) need))))
+    (when cur
+      (setq rows (append rows (list (nreverse cur)))))
+    (setq rows (nreverse rows))
+    (mapcar (lambda (row)
+              (mapconcat #'identity row (make-string my-dash-card-gap ?\s)))
+            rows)))
+
+(defun my-dash-insert-navigator ()
+  "极简导航: 按钮流式分行, 整块居中, 无框线."
+  (when dashboard-navigator-buttons
+    (my-dash--insert-block (my-dash--navigator-flow))
+    (insert "\n")))
+
+(defun my-dash-insert-sections ()
+  "极简留白: 四个分区 (标题 + 纯列表) 作为一个块居中, 无框线."
   (unless my-dash--cache
     (my-dash--refresh-cache))
   (let ((recents (nth 0 my-dash--cache))
         (projects (nth 1 my-dash--cache))
         (agenda (nth 2 my-dash--cache))
-        (bookmarks (nth 3 my-dash--cache)))
-    (my-dash--insert-card-pair
-     (list "nf-fa-files_o" "最近のファイル"
-           (mapcar (lambda (f)
-                     (list "nf-md-file" (car f) (list 'find-file-existing (cdr f)) my-dash-c-recent))
-                   (seq-take recents my-dash-card-rows)))
-     (list "nf-fa-folder_open_o" "プロジェクト"
-           (mapcar (lambda (p)
-                     (list "nf-md-folder" (car p) (list 'projectile-switch-project-by-name (cdr p)) my-dash-c-project))
-                   (seq-take projects my-dash-card-rows))))
-    (my-dash--insert-card-pair
-     (list "nf-fa-calendar" "アジェンダ"
-           (if agenda
-               (mapcar (lambda (a)
-                         (list "nf-md-calendar_clock" (car a) '(org-agenda nil "a") my-dash-c-agenda))
-                       (seq-take agenda my-dash-card-rows))
-             ;; agenda 异步加载中/失败: 先显示占位, 数据到了自动重渲染
-             (list (list "nf-md-calendar_clock"
-                         (if my-dash--agenda-loading
-                             "カレンダー読み込み中"
-                           "アジェンダ利用不可")
-                         nil my-dash-c-idle))))
-     (list "nf-fa-bookmark_o" "ブックマーク"
-           (mapcar (lambda (b)
-                     (list "nf-md-bookmark" (car b)
-                           (list 'bookmark-jump (car b)) my-dash-c-bookmark))
-                   (seq-take bookmarks my-dash-card-rows))))))
+        (bookmarks (nth 3 my-dash--cache))
+        lines)
+    (let ((sections
+           (list
+            (list "nf-fa-files_o" "最近のファイル"
+                  (mapcar (lambda (f)
+                            (list "nf-md-file" (car f)
+                                  (list 'find-file-existing (cdr f))
+                                  my-dash-c-recent))
+                          (seq-take recents my-dash-card-rows)))
+            (list "nf-fa-folder_open_o" "プロジェクト"
+                  (mapcar (lambda (p)
+                            (list "nf-md-folder" (car p)
+                                  (list 'projectile-switch-project-by-name (cdr p))
+                                  my-dash-c-project))
+                          (seq-take projects my-dash-card-rows)))
+            (list "nf-fa-calendar" "アジェンダ"
+                  (if agenda
+                      (mapcar (lambda (a)
+                                (list "nf-md-calendar_clock" (car a)
+                                      '(org-agenda nil "a") my-dash-c-agenda))
+                              (seq-take agenda my-dash-card-rows))
+                    (list (list "nf-md-calendar_clock"
+                                (if my-dash--agenda-loading
+                                    "カレンダー読み込み中"
+                                  "アジェンダ利用不可")
+                                nil my-dash-c-idle))))
+            (list "nf-fa-bookmark_o" "ブックマーク"
+                  (mapcar (lambda (b)
+                            (list "nf-md-bookmark" (car b)
+                                  (list 'bookmark-jump (car b)) my-dash-c-bookmark))
+                          (seq-take bookmarks my-dash-card-rows))))))
+      (dolist (sec sections)
+        (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec)))
+          (push (propertize (concat (my-dash--icon icon) "  " label)
+                            'face (list :foreground my-dash-c-cardhead
+                                        :weight 'bold))
+                lines)
+          (dolist (r rows)
+            (let ((txt (concat "  " (my-dash--icon (nth 0 r)) " "
+                               (my-dash--trunc (nth 1 r) 44))))
+              (push (if (nth 2 r)
+                        (propertize txt
+                                    'face `(:foreground ,(nth 3 r))
+                                    'keymap (my-dash--click-map (nth 2 r))
+                                    'mouse-face 'highlight
+                                    'help-echo (format "RET: %S" (nth 2 r)))
+                      (propertize txt 'face `(:foreground ,(nth 3 r))))
+                    lines)))
+          (push "" lines))))
+    (setq lines (nreverse lines))
+    (when (equal (car (last lines)) "")
+      (setq lines (nbutlast lines)))
+    (my-dash--insert-block lines)))
 
-(defun my-dash--navigator-row (row)
-  "Render one navigator ROW as clickable buttons, joined by gap spaces.
-Buttons keep `dashboard-navigator-buttons' (icon label help action).
-The icon is NOT re-propertized (its nerd-icons :family face must
-survive so the glyph stays 1 column); only the label gets the
-bright-blue color. Both icon and label are clickable."
-  (mapconcat
-   (lambda (btn)
-     (let* ((icon (nth 0 btn))
-            (label (nth 1 btn))
-            (action (nth 3 btn))
-            (click-props (list 'keymap (my-dash--click-map action)
-                               'mouse-face 'highlight
-                               'help-echo (nth 2 btn))))
-       (concat (apply #'propertize icon click-props)
-               (apply #'propertize (concat " " label)
-                      (append click-props
-                              (list 'face (list :foreground my-dash-c-button)))))))
-   row (make-string my-dash-card-gap ?\s)))
-
-(defun my-dash-insert-navigator-box ()
-  "Render `dashboard-navigator-buttons' inside one centered box.
-自适应流式布局: 12 个按钮按当前窗口实际像素宽度逐个装箱, 放不下自动
-换行 (窄窗口不溢出, 宽窗口自动并 行); 行宽 = 各行实测像素格数最大值,
-每行像素补位对齐, 边框字面拼接 (ASCII 字符, 恒 1 格, 无字体依赖)."
-  (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
-         (cell (my-dash--cell-px))
-         (avail (max 200
-                     (if win
-                         (- (window-body-width win t) (* 6 cell))
-                       (* 100 cell))))
-         (buttons (apply #'append dashboard-navigator-buttons))
-         rows cur cur-px)
-    ;; 流式装箱: 累计宽度超出可用宽度就换行
-    (dolist (btn buttons)
-      (let* ((s (my-dash--navigator-row (list btn)))
-             (px (my-dash--px s))
-             (need (+ px (if cur (* my-dash-card-gap cell) 0))))
-        (when (and cur (> (+ cur-px need) avail))
-          (setq rows (append rows (list (nreverse cur)))
-                cur nil
-                cur-px 0
-                need px))
-        (setq cur (cons s cur)
-              cur-px (+ (or cur-px 0) need))))
-    (when cur
-      (setq rows (append rows (list (nreverse cur)))))
-    (setq rows (nreverse rows))
-    ;; 每行 = 该行按钮串用 gap 空格拼接成的字符串
-    (setq rows (mapcar (lambda (row)
-                         (mapconcat #'identity row
-                                    (make-string my-dash-card-gap ?\s)))
-                       rows))
-    (let* ((cells (mapcar #'my-dash--px-cells rows))
-           (content-w (apply #'max cells))
-           (box-w (+ content-w 4))
-           (win-px (if win (window-body-width win t) (* 120 cell)))
-           (center-px (max 0 (/ (- win-px (* box-w cell)) 2)))
-           (center-sp (my-dash--px-gap center-px))
-           (gap-str (make-string my-dash-card-gap ?\s)))
-      (insert center-sp)
-      (insert (propertize (concat "+" (make-string (+ content-w 2) ?-))
-                          'face my-dash--box-border-face))
-      (insert (propertize "+" 'face my-dash--box-border-face))
-      (insert "\n")
-      (dolist (row rows)
-        (insert center-sp)
-        (insert (propertize "| " 'face my-dash--box-border-face))
-        (insert (my-dash--pad-right row content-w))
-        (insert (propertize " |" 'face my-dash--box-border-face))
-        (insert "\n"))
-      (insert center-sp)
-      (insert (propertize (concat "+" (make-string (+ content-w 2) ?-))
-                          'face my-dash--box-border-face))
-      (insert (propertize "+" 'face my-dash--box-border-face))
-      (insert "\n"))))
-
-;; 窗口尺寸变化 → 重排 (像素居中是渲染时冻结的, resize 后需按新窗宽重算)
 (defvar my-dash--resize-timer nil "resize 防抖 timer.")
 (defun my-dash--resize-rerender (&rest _)
   (when (and (boundp 'dashboard-buffer-name)
@@ -957,15 +807,12 @@ bright-blue color. Both icon and label are clickable."
             (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
-  ;; ASCII banner: Lain CRT 终端 (自绘, ~/.emacs.d/banners/; 终端 -nw 也显示)
-  (dashboard-startup-banner (expand-file-name "banners/lain-navi.txt"
-                                              user-emacs-directory))
   (dashboard-set-heading-icons t)
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
   (dashboard-banner-logo-title "プレゼントデイ、プレゼントタイム。")
-  ;; 四模块: recents/projects/agenda/bookmarks (卡片化渲染, 见 my-dash-insert-items)
+  ;; 四模块: recents/projects/agenda/bookmarks (极简分区渲染, 见 my-dash-insert-sections)
   (dashboard-items '((recents . 6)
                      (projects . 5)
                      (agenda . 5)
@@ -980,25 +827,20 @@ bright-blue color. Both icon and label are clickable."
          (format "シリアルエクスペリメンツレインを愛そう。 (Emacs %s)" emacs-version)
          (format "ワイヤードにいるときだけ、しあわせ。 (Emacs %s)" emacs-version)))
   (dashboard-startupify-list
-   '(dashboard-insert-banner
+   '(dashboard-insert-banner-title
      dashboard-insert-newline
-     dashboard-insert-banner-title
-     dashboard-insert-newline
-     my-dash-insert-navigator-box
+     my-dash-insert-navigator
      dashboard-insert-newline
      dashboard-insert-init-info
      dashboard-insert-newline
-     my-dash-insert-items
+     my-dash-insert-sections
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题/footer/banner 三个 face 用 DotGothic16 点阵字体 (Lain CRT 感)。
-  ;; ⚠️ 不能 remap 整个 buffer 的 default face: 卡片边框 ─│ 在该字体下是
-  ;; 全角宽, 会打乱卡片对齐 (2026-09 实测确认) — 卡片保持全局 SpaceMono。
-  ;; 字体未装时该 family 自动回退默认字体, 无副作用。
+  ;; 标题/footer 用 DotGothic16 点阵 (kana 由 my-dash--apply-dot-jp 挂专用
+  ;; fontset 兜底, 压过全局 fontset 的 PingFang 映射)。
   (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "DotGothic16"))))
-  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16"))))
-  (dashboard-text-banner ((t (:foreground "#5cff87" :family "DotGothic16")))))
+  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16")))))
 
 ;; 启动信息行日文化 (默认英文 "Emacs started in X seconds")
 (setq dashboard-init-info
@@ -1006,160 +848,38 @@ bright-blue color. Both icon and label are clickable."
         (format "起動時間: %.2f 秒"
                 (float-time (time-subtract after-init-time before-init-time)))))
 
-;; ---------- Lain banner 动画: 终端滚动 (2026-09) ----------
-;; 0.35s/tick 重绘 NAVI 屏幕内部: 8 行 boot log 在 4 行终端窗口滚动,
-;; 光标闪烁, 静噪每帧循环移位 (CRT 闪烁感), 滚完停留 4 帧后循环。
-;; 只重写 banner 区块 (bezel 内, 10 行 × 62 列, 每帧几何一致), 不碰
-;; 卡片/按钮; dashboard 不可见时 tick 直接跳过 (近零开销)。
-;; re-render (recentf 钩子/dashboard-open/C-c h) 会重建 buffer → marker
-;; 失效, tick 自愈: 锚点校验失败就按 ".-[ N A V I ]"/"^'--" 重新定位。
-(require 'cl-lib)
-(defvar my-dash-anim-timer nil "banner 动画 timer (重复, 见 `my-dash-anim--interval').")
-(defvar my-dash-anim--frame 0 "当前帧序号 (tick 自增, block 内取模).")
-(defvar my-dash-anim--ov nil "banner 区块 overlay (display 属性承载动画帧).")
-(defvar my-dash-anim--fontset nil
-  "banner 专用 fontset (kana/han 也指到 DotGothic16, 见 `my-dash-anim--ensure-fontset').")
-(defconst my-dash-anim--iw 58 "NAVI 屏幕内宽 (bezel 内部列数).")
-(defconst my-dash-anim--hold 4 "滚动完一轮后的停留帧数.")
-(defconst my-dash-anim--interval 0.35 "每帧间隔秒数.")
-(defconst my-dash-anim--log
-  '("> lain.exe_ 起動中"
-    "> レイヤー 07 : 接続"
-    "> プロトコル . . . ナイト"
-    "> ワイヤードへ接続中"
-    "> ハンドシェイク . . . . OK"
-    "> どこにいても、"
-    "> みんなつながってる。"
-    "> 接続完了。レイン、起動。")
-  "滚动日志行 (终端窗口一次显示 4 行, 日文).")
-(defvar my-dash-anim--noise
-  (mapcar (lambda (_)
-            (mapconcat (lambda (_)
-                         (if (< (random 100) 16)
-                             (char-to-string (aref ".:.;," (random 5)))
-                           " "))
-                       (number-sequence 1 my-dash-anim--iw) ""))
-          '(0 1))
-  "两条 CRT 静噪行 (每会话随机, 逐帧循环移位).")
+;; ---------- 标题/页脚日文点阵 (DotGothic16 专用 fontset) ----------
+(defvar my-dash--fontset nil "标题/页脚日文 DotGothic16 fontset.")
 
-(defun my-dash-anim--rot (s n)
-  "字符串 S 循环左移 N 位 (静噪闪烁用)."
-  (let* ((l (length s))
-         (n (% n l)))
-    (concat (substring s n) (substring s 0 n))))
-
-(defun my-dash-anim--pad (s)
-  "按 display-width 补到内宽 58 (CJK 全角=2 列, 日文行不歪)."
-  (let ((w (string-width s)))
-    (if (>= w my-dash-anim--iw) s
-      (concat s (make-string (- my-dash-anim--iw w) ?\s)))))
-
-(defun my-dash-anim--block (f)
-  "第 F 帧的完整 banner 区块 (11 行: bezel+8 内部+bezel+tagline, 62 列)."
-  (let* ((n (length my-dash-anim--log))
-         (ff (% f (+ n my-dash-anim--hold)))
-         (cur (min ff (1- n)))
-         (newest (1+ cur))
-         (first (max 0 (- newest 4)))
-         (show (cl-subseq my-dash-anim--log first newest))
-         (cursor (if (= (% f 2) 0) "_" ""))
-         (log-rows
-          (cl-loop for i below 4 collect
-                   (let ((ln (or (nth i show) "")))
-                     (if (and (= i (1- (length show))) cursor)
-                         (concat ln cursor) ln)))))
-    (mapconcat
-     #'identity
-     (list
-      (concat ".-[ N A V I ]" (make-string (- my-dash-anim--iw 10) ?-) ".")
-      (concat "| " (my-dash-anim--pad (my-dash-anim--rot (nth 0 my-dash-anim--noise) f)) " |")
-      (concat "| " (my-dash-anim--pad "シリアルエクスペリメンツレイン") " |")
-      (concat "| " (my-dash-anim--pad (nth 0 log-rows)) " |")
-      (concat "| " (my-dash-anim--pad (nth 1 log-rows)) " |")
-      (concat "| " (my-dash-anim--pad (nth 2 log-rows)) " |")
-      (concat "| " (my-dash-anim--pad (nth 3 log-rows)) " |")
-      (concat "| " (my-dash-anim--pad (my-dash-anim--rot (nth 1 my-dash-anim--noise) f)) " |")
-      (concat "| " (my-dash-anim--pad "") " |")
-      (concat "'" (make-string 60 ?-) "'")
-      (concat "  " (my-dash-anim--pad "世界を閉じて、次の世界を開く。") "  "))
-     "\n")))
-
-(defun my-dash-anim--ensure-fontset ()
-  "建 banner 专用 fontset: kana/han/cjk-misc 强制 DotGothic16.
-全局 fontset (ide.el 字体段) 把 kana/han/cjk-misc 指到 PingFang SC,
-banner 里的日文会被 fontset 规则截走交给中文字体渲染 → advance/行高
-与 DotGothic16 不一致 → 边框错位。专用 fontset 下全部字形同字体
-(DotGothic16 实测 Latin=500/CJK=1000 严格 2:1, 全字符覆盖),
-对齐由构造保证。"
-  (when (and (display-graphic-p) (not my-dash-anim--fontset))
+(defun my-dash--ensure-fontset ()
+  "建 DotGothic16 专用 fontset (kana/han/cjk-misc → DotGothic16),
+压过全局 fontset 的 PingFang 映射, 让标题/页脚假名呈点阵质感."
+  (unless my-dash--fontset
     (ignore-errors
       (create-fontset-from-fontset-spec
-       "-*-DotGothic16-medium-r-normal-*-14-*-*-*-*-*-fontset-mydashlain"
-       nil t)
+       "-*-DotGothic16-medium-r-normal-*-14-*-*-*-*-*-fontset-mydash" nil t)
       (dolist (cs '(kana han cjk-misc bopomofo))
-        (set-fontset-font "fontset-mydashlain" cs
+        (set-fontset-font "fontset-mydash" cs
                           (font-spec :family "DotGothic16")))
-      (setq my-dash-anim--fontset "fontset-mydashlain"))))
+      (setq my-dash--fontset "fontset-mydash"))))
 
-(defun my-dash-anim--locate ()
-  "按锚点重建 banner 区块 overlay (bezel 顶行 → tagline 行)."
-  (with-current-buffer (get-buffer dashboard-buffer-name)
-    (save-excursion
-      (goto-char (point-min))
-      (when (search-forward ".-[ N A V I ]" nil t)
-        (let ((beg (progn (beginning-of-line) (point))))
-          (when (re-search-forward "^'--" nil t)
-            (forward-line 1)                     ; → tagline 行
-            (end-of-line)
-            (when (overlayp my-dash-anim--ov) (delete-overlay my-dash-anim--ov))
-            (setq my-dash-anim--ov (make-overlay beg (point)))
-            (overlay-put my-dash-anim--ov 'evaporate t)))))))
+(defun my-dash--apply-dot-jp ()
+  "渲染后给标题/页脚的日文挂点阵 fontset."
+  (my-dash--ensure-fontset)
+  (when my-dash--fontset
+    (with-current-buffer dashboard-buffer-name
+      (save-excursion
+        (let ((inhibit-read-only t))
+          (dolist (needle '("プレゼントデイ" "どこにいても"
+                            "シリアルエクスペリメンツレインを愛そう"
+                            "ワイヤードにいるときだけ"))
+            (goto-char (point-min))
+            (when (search-forward needle nil t)
+              (put-text-property (match-beginning 0) (line-end-position)
+                                 'fontset my-dash--fontset))))))))
 
-(defun my-dash-anim--draw ()
-  "重绘一帧: 只更新 overlay 的 display 属性 (零 buffer 修改, 不干扰滚动)."
-  (with-current-buffer (get-buffer dashboard-buffer-name)
-    ;; 自愈: overlay 失效 (re-render erase → evaporate) → 重建
-    ;; (锚点校验: 区块起始必须在行首且为 "." , 防折叠假命中)
-    (unless (and (overlayp my-dash-anim--ov)
-                 (overlay-buffer my-dash-anim--ov)
-                 (save-excursion
-                   (goto-char (overlay-start my-dash-anim--ov))
-                   (and (bolp) (eq (char-after) ?.))))
-      (my-dash-anim--locate))
-    (when (and (overlayp my-dash-anim--ov) (overlay-buffer my-dash-anim--ov))
-      (my-dash-anim--ensure-fontset)
-      (let* ((win (car (get-buffer-window-list (current-buffer) nil 'all-frames)))
-             ;; 居中: 每帧按 dashboard 窗口宽重算 → 缩放自适应
-             (w (if win (window-width win) 100))
-             (cpad (make-string (max 0 (/ (- w 62) 2)) ?\s))
-             (block (mapconcat (lambda (ln) (concat cpad ln))
-                               (split-string
-                                (my-dash-anim--block my-dash-anim--frame) "\n")
-                               "\n")))
-        (overlay-put my-dash-anim--ov 'display
-                     (if my-dash-anim--fontset
-                         ;; 专用 fontset: CJK 也走 DotGothic16 (2:1 严格对齐)
-                         (propertize block 'face 'dashboard-text-banner
-                                     'fontset my-dash-anim--fontset)
-                       (propertize block 'face 'dashboard-text-banner)))
-        (setq my-dash-anim--frame (1+ my-dash-anim--frame))))))
-
-(defun my-dash-anim--tick ()
-  "动画 tick: dashboard 可见且 banner 未滚出视野才重绘 (拖滚动条零干扰)."
-  (let ((buf (get-buffer dashboard-buffer-name)))
-    (when (and buf
-               (get-buffer-window buf 'all-frames)
-               (or (not (overlayp my-dash-anim--ov))
-                   (not (overlay-buffer my-dash-anim--ov))
-                   (let ((win (car (get-buffer-window-list buf nil 'all-frames))))
-                     (when win
-                       (< (window-start win) (overlay-end my-dash-anim--ov))))))
-      (my-dash-anim--draw))))
-
-(when (timerp my-dash-anim-timer) (cancel-timer my-dash-anim-timer))
-(setq my-dash-anim-timer
-      (run-with-timer my-dash-anim--interval my-dash-anim--interval
-                      #'my-dash-anim--tick))
+(advice-add 'dashboard-insert-startupify-lists :after
+            (lambda (&rest _) (my-dash--apply-dot-jp)))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
