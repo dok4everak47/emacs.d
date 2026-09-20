@@ -622,18 +622,24 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
     (dolist (l lines)
       (insert (if (equal l "") "\n" (concat pad l "\n"))))))
 
+(defun my-dash--merge-face (base extra)
+  "BASE (图标原有 face, 可为 nil) 与 EXTRA (前景色 plist) 合成 face 列表."
+  (if base (list base extra) extra))
+
 (defun my-dash--navigator-btn (btn)
-  "渲染单个导航按钮: icon (已是字形串) + label, 可点击, 磷光绿."
-  (let ((icon (car btn)) (title (cadr btn))
-        (help (caddr btn)) (action (cadddr btn)))
+  "渲染单个导航按钮: icon 保留 nerd-icons 字体 face + 磷光绿前景, 可点击."
+  (let* ((icon (car btn)) (title (cadr btn))
+         (help (caddr btn)) (action (cadddr btn))
+         (km (my-dash--click-map action))
+         (fg (list :foreground my-dash-c-button))
+         (iface (get-text-property 0 'face icon))
+         (hov (my-dash--merge-face iface 'highlight)))
     (concat
-     (propertize icon 'face my-dash-c-button
-                 'keymap (my-dash--click-map action) 'mouse-face 'highlight
-                 'help-echo help)
+     (propertize icon 'face (my-dash--merge-face iface fg)
+                 'mouse-face hov 'keymap km 'help-echo help)
      " "
-     (propertize title 'face my-dash-c-button
-                 'keymap (my-dash--click-map action) 'mouse-face 'highlight
-                 'help-echo help))))
+     (propertize title 'face fg 'mouse-face 'highlight
+                 'keymap km 'help-echo help))))
 
 (defun my-dash--navigator-flow ()
   "导航按钮按窗口实际像素宽流式分行 (窄窗口自动换行, 不溢出)."
@@ -706,20 +712,21 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
                           (seq-take bookmarks my-dash-card-rows))))))
       (dolist (sec sections)
         (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec)))
-          (push (propertize (concat (my-dash--icon icon) "  " label)
-                            'face (list :foreground my-dash-c-cardhead
-                                        :weight 'bold))
+          (push (concat (my-dash--icon icon) "  "
+                        (propertize label 'face (list :foreground my-dash-c-cardhead
+                                                      :weight 'bold)))
                 lines)
           (dolist (r rows)
-            (let ((txt (concat "  " (my-dash--icon (nth 0 r)) " "
-                               (my-dash--trunc (nth 1 r) 44))))
-              (push (if (nth 2 r)
-                        (propertize txt
-                                    'face `(:foreground ,(nth 3 r))
-                                    'keymap (my-dash--click-map (nth 2 r))
-                                    'mouse-face 'highlight
-                                    'help-echo (format "RET: %S" (nth 2 r)))
-                      (propertize txt 'face `(:foreground ,(nth 3 r))))
+            (let* ((fg `(:foreground ,(nth 3 r)))
+                   (act (nth 2 r))
+                   (txt (my-dash--trunc (nth 1 r) 44)))
+              (push (concat "  " (my-dash--icon (nth 0 r)) " "
+                            (if act
+                                (propertize txt 'face fg
+                                            'keymap (my-dash--click-map act)
+                                            'mouse-face 'highlight
+                                            'help-echo (format "RET: %S" act))
+                              (propertize txt 'face fg)))
                     lines)))
           (push "" lines))))
     (setq lines (nreverse lines))
