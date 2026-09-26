@@ -19,6 +19,9 @@
 (defvar org-clock-out-remove-zero-time-clocks nil)
 (defvar org-clock-persist nil)
 (defvar org-agenda-custom-commands nil)   ; org-agenda lazy-load 前需声明 (定义在 org-agenda.el)
+(defvar org-directory "~/org")            ; 2026-09-23: 下面"确保 ~/org 存在"的顶层
+                                          ;   file-exists-p 会读它, 而 :custom 里的
+                                          ;   org-directory 要等 org 加载才生效
 ;; 注: 勿 defvar org-agenda-span — defvar 在有值时不会重置, 若置 nil 会覆盖
 ;; org-agenda.el 的 defcustom 默认值(week), 导致 C-c a 报 number-or-marker-p nil。
 (defvar org-agenda-files '("~/org/inbox.org"      ; Agenda 只扫描任务文件 + 节假日
@@ -37,6 +40,10 @@
 ;; Emacs 内置, 不从 ELPA 装 (避免版本冲突)
 (use-package org
   :ensure nil
+  ;; 启动优化 (2026-09-23): 不再在启动时加载 org 本体 (省 ~0.45s)。
+  ;; 打开 .org 文件 / C-c a / C-c c 都由 autoload 触发, 感知不到差别。
+  ;; 若想让 org 在启动后空闲时自动热起来, 见文件末尾注释。
+  :defer t
   :custom
   (org-startup-indented t)                  ; 内容自动缩进对齐标题
   (org-hide-leading-stars t)                ; 隐藏前导星号 (更干净)
@@ -74,10 +81,12 @@
 ;; org-mode-map 的 menu-bar 挂了 Table / Org / Text 三个菜单,
 ;; 用户要精简菜单栏 (功能快捷键照常, 只去菜单项)。
 ;; 直接 define-key 删除 menu-bar 子键最可靠 (easy-menu-remove-menu 需 emacs-menu 加载)。
-;; 放加载时执行即可, org-mode-map 此时已存在; org-mode 每次开启不会重挂。
-(define-key org-mode-map [menu-bar table] nil)
-(define-key org-mode-map [menu-bar org] nil)
-(define-key org-mode-map [menu-bar text] nil)
+;; 2026-09-23: org 懒加载后这个位置 org-mode-map 还不存在, 必须等 org 加载完再删。
+;; (org-mode 每次开启不会重挂, 所以加载后删一次就够)
+(with-eval-after-load 'org
+  (define-key org-mode-map [menu-bar table] nil)
+  (define-key org-mode-map [menu-bar org] nil)
+  (define-key org-mode-map [menu-bar text] nil))
 
 ;; ---------- org-modern: 现代化外观 ----------
 ;; 用 Unicode 符号替代星号标题, TODO 关键字彩色背景, 标签美化
@@ -109,7 +118,7 @@
 ;;   - 智能命令 (I/A/o/O/d/x/X, element 导航) → SPC 前缀 (leader)
 ;;   - 文本对象 → meow thing (, 或 . + E/R/G)
 (require 'cl-lib)
-(require 'org)
+;; org 本体懒加载 (见文件开头 use-package org 的 :defer t): 省启动 ~0.45s。
 
 ;; ---------- org-agenda: 懒加载 ----------
 ;; 不 require (启动省 ~60ms), 首次用 C-c a 才加载。
@@ -409,29 +418,32 @@
 
 ;; --- 键位: 组合键直接绑 org-mode-map (meow 穿透, 不拦截组合键) ---
 ;; 单字母键 (i/a/o/d/x/w/e/b...) 走 meow 原生布局; 智能命令走 SPC 前缀 (见 init-meow.el)
-(define-key org-mode-map (kbd "$") #'my-org-end-of-line)
-(define-key org-mode-map (kbd ")") #'my-org-forward-sentence)
-(define-key org-mode-map (kbd "(") #'my-org-backward-sentence)
-(define-key org-mode-map (kbd "}") #'org-forward-paragraph)
-(define-key org-mode-map (kbd "{") #'org-backward-paragraph)
-(define-key org-mode-map (kbd "<") #'my-org-<)
-(define-key org-mode-map (kbd ">") #'my-org->)
-(define-key org-mode-map (kbd "C-RET") #'my-org-org-insert-heading-respect-content-below)
-(define-key org-mode-map (kbd "C-S-RET") #'my-org-org-insert-todo-heading-respect-content-below)
-(define-key org-mode-map (kbd "C-t") #'org-metaright)
-(define-key org-mode-map (kbd "C-d") #'org-metaleft)
-(define-key org-mode-map (kbd "M-h") #'org-metaleft)
-(define-key org-mode-map (kbd "M-l") #'org-metaright)
-(define-key org-mode-map (kbd "M-k") #'org-metaup)
-(define-key org-mode-map (kbd "M-j") #'org-metadown)
-(define-key org-mode-map (kbd "M-H") #'org-shiftmetaleft)
-(define-key org-mode-map (kbd "M-L") #'org-shiftmetaright)
-(define-key org-mode-map (kbd "M-K") #'org-shiftmetaup)
-(define-key org-mode-map (kbd "M-J") #'org-shiftmetadown)
-(define-key org-mode-map (kbd "C-S-h") #'org-shiftcontrolleft)
-(define-key org-mode-map (kbd "C-S-l") #'org-shiftcontrolright)
-(define-key org-mode-map (kbd "C-S-k") #'org-shiftcontrolup)
-(define-key org-mode-map (kbd "C-S-j") #'org-shiftcontroldown)
+;; 2026-09-23: org 改懒加载后这一整块要延后 — org-mode-map 要等 org 加载才存在,
+;; 放在加载期会在第一行 void-variable 中断, 本文件后面所有配置静默丢失。
+(with-eval-after-load 'org
+  (define-key org-mode-map (kbd "$") #'my-org-end-of-line)
+  (define-key org-mode-map (kbd ")") #'my-org-forward-sentence)
+  (define-key org-mode-map (kbd "(") #'my-org-backward-sentence)
+  (define-key org-mode-map (kbd "}") #'org-forward-paragraph)
+  (define-key org-mode-map (kbd "{") #'org-backward-paragraph)
+  (define-key org-mode-map (kbd "<") #'my-org-<)
+  (define-key org-mode-map (kbd ">") #'my-org->)
+  (define-key org-mode-map (kbd "C-RET") #'my-org-org-insert-heading-respect-content-below)
+  (define-key org-mode-map (kbd "C-S-RET") #'my-org-org-insert-todo-heading-respect-content-below)
+  (define-key org-mode-map (kbd "C-t") #'org-metaright)
+  (define-key org-mode-map (kbd "C-d") #'org-metaleft)
+  (define-key org-mode-map (kbd "M-h") #'org-metaleft)
+  (define-key org-mode-map (kbd "M-l") #'org-metaright)
+  (define-key org-mode-map (kbd "M-k") #'org-metaup)
+  (define-key org-mode-map (kbd "M-j") #'org-metadown)
+  (define-key org-mode-map (kbd "M-H") #'org-shiftmetaleft)
+  (define-key org-mode-map (kbd "M-L") #'org-shiftmetaright)
+  (define-key org-mode-map (kbd "M-K") #'org-shiftmetaup)
+  (define-key org-mode-map (kbd "M-J") #'org-shiftmetadown)
+  (define-key org-mode-map (kbd "C-S-h") #'org-shiftcontrolleft)
+  (define-key org-mode-map (kbd "C-S-l") #'org-shiftcontrolright)
+  (define-key org-mode-map (kbd "C-S-k") #'org-shiftcontrolup)
+  (define-key org-mode-map (kbd "C-S-j") #'org-shiftcontroldown))
 ;; Tab/backtab 保留 org 默认 (org-cycle / org-shifttab), meow 穿透
 
 ;; --- org-agenda: 专用 state (meow) ---
@@ -477,7 +489,10 @@
 (setq org-clock-in-switch-to-state "DOING"    ; 打卡时任务自动转 DOING
       org-clock-out-remove-zero-time-clocks t ; 零时长记录自动清除
       org-clock-persist t)                    ; 重启 Emacs 后恢复打卡状态
-(org-clock-persistence-insinuate)
+;; 必须等 org 加载后再调 (它是 org-clock 的 autoload, 提前调会把 org-clock
+;; 连同 org 一起拉起来, 破坏懒加载)
+(with-eval-after-load 'org
+  (org-clock-persistence-insinuate))
 
 ;; ---------- org-gcal: Google Calendar 双向同步 ----------
 ;; 把 Google 日历事件拉进 ~/org/gcal.org (随 agenda 一起显示),

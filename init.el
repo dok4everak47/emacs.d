@@ -22,7 +22,11 @@
 ;;;   service=smtp.gmail.com  account=<gmail>
 ;;;   service=smtp.126.com    account=<126>
 
-(require 'smtpmail)
+;; 启动优化 (2026-09-23): 这里不 require smtpmail / message。
+;; smtpmail-send-it 自带 autoload, 真正发送时 (message-send-mail-function
+;; 调它) 才加载; 下面的 smtpmail-* / message-* 全是 setq / add-hook,
+;; 不需要提前加载 (实测 defcustom 不会覆盖"先 setq 后加载"的值)。
+;; 代价: 第一次真发信时多花 ~0.2s; 收益: 启动省 ~0.3s。
 
 ;; --- 收件人补全: ecomplete (历史邮箱自动积累 + TAB 补全) ---
 ;; 发送邮件时自动记录收件人; 写 To/Cc/Bcc 时输入几个字母按 TAB 弹出候选。
@@ -135,8 +139,9 @@
       (setq my-mail-account acct)
       (my-mail-account-setup)
       (message "已切换账号: %s → 发送人 %s" acct user-mail-address))))
-(require 'message)
-(define-key message-mode-map (kbd "C-c m s") #'my-mail-switch-account)
+;; message.el 同样延迟到写邮件时才加载 (compose-mail 是 C 层 subr, 不需要它)。
+(with-eval-after-load 'message
+  (define-key message-mode-map (kbd "C-c m s") #'my-mail-switch-account))
 
 ;; ================= 定时发送 =================
 ;; C-c m t → 提示输入发送时间, 到点自动发送当前邮件
@@ -189,7 +194,8 @@
           (format-time-string "%m-%d %H:%M" target))
     (message "已设定 %s 定时发送 (%s)" my-mail-timer-string time-str)))
 
-(define-key message-mode-map (kbd "C-c m t") #'my-mail-send-at)
+(with-eval-after-load 'message
+  (define-key message-mode-map (kbd "C-c m t") #'my-mail-send-at))
 
 ;; ================= 附件: 人性化方案 =================
 ;; 1) C-c C-a → macOS 原生文件选择对话框 (不再手输路径)
@@ -213,7 +219,8 @@
     t))
 (require 'dnd)
 (push '("^file://" . my-dnd-attach) dnd-protocol-alist)
-(define-key message-mode-map (kbd "C-c C-a") #'my-mail-attach-file)
+(with-eval-after-load 'message
+  (define-key message-mode-map (kbd "C-c C-a") #'my-mail-attach-file))
 
 ;; ================= 邮件快捷面板 =================
 ;; C-c m p 打开面板: 写邮件/账号选择/帮助集中一页, 数字键或鼠标点选
