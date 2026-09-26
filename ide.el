@@ -709,19 +709,19 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
         lines)
     (let ((sections
            (list
-            (list "nf-fa-files_o" "最近のファイル"
+            (list "nf-fa-files_o" "Recent Files"
                   (mapcar (lambda (f)
                             (list "nf-md-file" (car f)
                                   (list 'find-file-existing (cdr f))
                                   my-dash-c-recent))
                           (seq-take recents my-dash-card-rows)))
-            (list "nf-fa-folder_open_o" "プロジェクト"
+            (list "nf-fa-folder_open_o" "Projects"
                   (mapcar (lambda (p)
                             (list "nf-md-folder" (car p)
                                   (list 'projectile-switch-project-by-name (cdr p))
                                   my-dash-c-project))
                           (seq-take projects my-dash-card-rows)))
-            (list "nf-fa-calendar" "アジェンダ"
+            (list "nf-fa-calendar" "Agenda"
                   (if agenda
                       (mapcar (lambda (a)
                                 (list "nf-md-calendar_clock" (car a)
@@ -729,10 +729,10 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
                               (seq-take agenda my-dash-card-rows))
                     (list (list "nf-md-calendar_clock"
                                 (if my-dash--agenda-loading
-                                    "カレンダー読み込み中"
-                                  "アジェンダ利用不可")
+                                    "Loading calendar…"
+                                  "Agenda unavailable")
                                 nil my-dash-c-idle))))
-            (list "nf-fa-bookmark_o" "ブックマーク"
+            (list "nf-fa-bookmark_o" "Bookmarks"
                   (mapcar (lambda (b)
                             (list "nf-md-bookmark" (car b)
                                   (list 'bookmark-jump (car b)) my-dash-c-bookmark))
@@ -792,7 +792,7 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (setq dashboard-navigator-buttons
         `(((,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-mail") "✉")
-            "メール受信" "Gnus 收邮件"
+            "Mail" "Gnus 收邮件"
             (lambda (&rest _) (gnus)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-pencil") "✍")
@@ -804,40 +804,40 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
             (lambda (&rest _) (my-compose-mail126)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-file_directory") "📂")
-            "ファイルツリー" "打开 dired-sidebar 侧边栏"
+            "File Tree" "打开 dired-sidebar 侧边栏"
             (lambda (&rest _) (dired-sidebar-toggle-sidebar)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-sign_out") "🚪")
-            "終了" "退出 Emacs"
+            "Quit" "退出 Emacs"
             (lambda (&rest _) (save-buffers-kill-terminal))))
           ;; 第二行: 人生管理 (org)
           ((,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-calendar") "📅")
-            "アジェンダ" "人生管理主视图: 本周日程 + 待办"
+            "Agenda" "人生管理主视图: 本周日程 + 待办"
             (lambda (&rest _) (org-agenda nil "n")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-plus") "✚")
-            "キャプチャ" "快速捕获任务/笔记 (C-c c)"
+            "Capture" "快速捕获任务/笔记 (C-c c)"
             (lambda (&rest _) (org-capture)))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-pencil") "✍")
-            "新規ノート" "直接新建笔记 (跳过模板选择)"
+            "New Note" "直接新建笔记 (跳过模板选择)"
             (lambda (&rest _) (org-capture nil "n")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-inbox") "📥")
-            "受信トレイ" "打开收集箱 inbox.org"
+            "Inbox" "打开收集箱 inbox.org"
             (lambda (&rest _) (find-file "~/org/inbox.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-repo") "🗂")
-            "プロジェクト" "打开项目树 projects.org"
+            "Projects" "打开项目树 projects.org"
             (lambda (&rest _) (find-file "~/org/projects.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-book") "📔")
-            "日記" "打开日记 journal.org"
+            "Journal" "打开日记 journal.org"
             (lambda (&rest _) (find-file "~/org/journal.org")))
            (,(if (fboundp 'nerd-icons-octicon)
                  (nerd-icons-octicon "nf-oct-note") "📝")
-            "ノート" "打开笔记索引 index.org"
+            "Notes" "打开笔记索引 index.org"
             (lambda (&rest _) (find-file "~/org/index.org"))))))
   (dashboard-setup-startup-hook)
   :custom
@@ -845,7 +845,7 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (dashboard-set-file-icons t)
   (dashboard-center-content t)
   (dashboard-vertically-center-content t)
-  (dashboard-banner-logo-title "プレゼントデイ、プレゼントタイム。")
+  (dashboard-banner-logo-title "Present day, present time.")
   ;; 四模块: recents/projects/agenda/bookmarks (极简分区渲染, 见 my-dash-insert-sections)
   (dashboard-items '((recents . 6)
                      (projects . 5)
@@ -855,11 +855,11 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   ;; 最近文件路径太长 → 截断开头 (只留文件名附近), 最大 40 字符
   (dashboard-path-style 'truncate-beginning)
   (dashboard-path-max-length 40)
-  ;; footer 文案: Lain 语录 (日文), 每次启动随机一条, 带 Emacs 版本号
+  ;; footer 文案: Lain 语录 (英文), 每次启动随机一条, 带 Emacs 版本号
   (dashboard-footer-messages
-   (list (format "どこにいても、みんなつながっている。 (Emacs %s)" emacs-version)
-         (format "シリアルエクスペリメンツレインを愛そう。 (Emacs %s)" emacs-version)
-         (format "ワイヤードにいるときだけ、しあわせ。 (Emacs %s)" emacs-version)))
+   (list (format "No matter where you go, everyone's connected. (Emacs %s)" emacs-version)
+         (format "Let's all love Lain. (Emacs %s)" emacs-version)
+         (format "I'm only happy when I'm in the Wired. (Emacs %s)" emacs-version)))
   (dashboard-startupify-list
    '(dashboard-insert-banner-title
      dashboard-insert-newline
@@ -871,49 +871,16 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题/footer 用 DotGothic16 点阵 (kana 由 my-dash--apply-dot-jp 挂专用
-  ;; fontset 兜底, 压过全局 fontset 的 PingFang 映射)。
+  ;; 标题/footer 用 DotGothic16 点阵 (含完整 ASCII 字形, 英文直接走点阵;
+  ;; 全局 fontset 只把 CJK 映射到 PingFang, 不映射拉丁字母, 故无需 fontset 兜底)。
   (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "DotGothic16"))))
   (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16")))))
 
-;; 启动信息行日文化 (默认英文 "Emacs started in X seconds")
+;; 启动信息行英文化 (默认 "Emacs started in X seconds")
 (setq dashboard-init-info
       (lambda ()
-        (format "起動時間: %.2f 秒"
+        (format "Startup: %.2f s"
                 (float-time (time-subtract after-init-time before-init-time)))))
-
-;; ---------- 标题/页脚日文点阵 (DotGothic16 专用 fontset) ----------
-(defvar my-dash--fontset nil "标题/页脚日文 DotGothic16 fontset.")
-
-(defun my-dash--ensure-fontset ()
-  "建 DotGothic16 专用 fontset (kana/han/cjk-misc → DotGothic16),
-压过全局 fontset 的 PingFang 映射, 让标题/页脚假名呈点阵质感."
-  (unless my-dash--fontset
-    (ignore-errors
-      (create-fontset-from-fontset-spec
-       "-*-DotGothic16-medium-r-normal-*-14-*-*-*-*-*-fontset-mydash" nil t)
-      (dolist (cs '(kana han cjk-misc bopomofo))
-        (set-fontset-font "fontset-mydash" cs
-                          (font-spec :family "DotGothic16")))
-      (setq my-dash--fontset "fontset-mydash"))))
-
-(defun my-dash--apply-dot-jp ()
-  "渲染后给标题/页脚的日文挂点阵 fontset."
-  (my-dash--ensure-fontset)
-  (when my-dash--fontset
-    (with-current-buffer dashboard-buffer-name
-      (save-excursion
-        (let ((inhibit-read-only t))
-          (dolist (needle '("プレゼントデイ" "どこにいても"
-                            "シリアルエクスペリメンツレインを愛そう"
-                            "ワイヤードにいるときだけ"))
-            (goto-char (point-min))
-            (when (search-forward needle nil t)
-              (put-text-property (match-beginning 0) (line-end-position)
-                                 'fontset my-dash--fontset))))))))
-
-(advice-add 'dashboard-insert-startupify-lists :after
-            (lambda (&rest _) (my-dash--apply-dot-jp)))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
