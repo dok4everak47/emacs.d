@@ -87,6 +87,41 @@
       (push (format "[%s] my-rust-run 已定义 (<leader>r 的 Emacs 版)" (if rr "OK" "FAIL")) out)
       (push (format "[%s] C-c C-r → my-rust-run (实际 %S)" (if rb "OK" "FAIL") rb) out)))
 
+  ;; 5c. 补全键位 (2026-09-25 新增: Enter 确认候选, Tab 让给 snippet 占位符)
+  (progn
+    (require 'corfu nil t)
+    (require 'yasnippet nil t)
+    (let ((tab (and (boundp 'corfu-map) (lookup-key corfu-map (kbd "TAB"))))
+          (ret (and (boundp 'corfu-map) (lookup-key corfu-map (kbd "RET"))))
+          (pre (and (boundp 'corfu-preselect) corfu-preselect))
+          (tif (and (boundp 'yas-triggers-in-field) yas-triggers-in-field)))
+      (push (format "[%s] corfu-map TAB 已让开 (实际 %S)" (if (null tab) "OK" "FAIL") tab) out)
+      (push (format "[%s] corfu-map RET → corfu-insert (实际 %S)" (if (eq ret 'corfu-insert) "OK" "FAIL") ret) out)
+      (push (format "[%s] corfu-preselect = first (实际 %S)" (if (eq pre 'first) "OK" "FAIL") pre) out)
+      (push (format "[%s] yas-triggers-in-field = nil (实际 %S)" (if (null tif) "OK" "FAIL") tif) out))
+    ;; 功能面: snippet 占位符内 TAB 应落到 yas 的字段跳转 (overlay keymap 压过 corfu-map)
+    (with-temp-buffer
+      (prog-mode)
+      (yas-minor-mode 1)
+      (yas-expand-snippet "$1 + $2")
+      (let ((tb (key-binding (kbd "TAB"))))
+        (when (and (consp tb) (eq (car tb) 'menu-item)) (setq tb (nth 1 tb)))
+        (push (format "[%s] 占位符内 TAB → yas-next-field-or-maybe-expand (实际 %S)"
+                      (if (eq tb 'yas-next-field-or-maybe-expand) "OK" "FAIL") tb)
+              out))))
+
+  ;; 5d. meow leader 键位 (2026-09-25 新增: SPC f s = nvim <leader>fs 的当前文件符号搜索)
+  (progn
+    (require 'consult nil t)
+    (let ((fs (and (boundp 'my-meow-leader-map) (lookup-key my-meow-leader-map (kbd "f s"))))
+          (ss (and (boundp 'my-meow-leader-map) (lookup-key my-meow-leader-map (kbd "s s"))))
+          (ff (and (boundp 'my-meow-leader-map) (lookup-key my-meow-leader-map (kbd "f f"))))
+          (fg (and (boundp 'my-meow-leader-map) (lookup-key my-meow-leader-map (kbd "f g")))))
+      (push (format "[%s] SPC f s → consult-imenu (实际 %S)" (if (eq fs 'consult-imenu) "OK" "FAIL") fs) out)
+      (push (format "[%s] SPC s s 未受影响 → surround-insert (实际 %S)" (if (eq ss 'surround-insert) "OK" "FAIL") ss) out)
+      (push (format "[%s] SPC f f → consult-fd (实际 %S)" (if (eq ff 'consult-fd) "OK" "FAIL") ff) out)
+      (push (format "[%s] SPC f g → consult-ripgrep (实际 %S)" (if (eq fg 'consult-ripgrep) "OK" "FAIL") fg) out)))
+
   ;; 6. 干净启动无初始化错误 (查 *Warnings* 是否有 initialization)
   (let ((w (get-buffer "*Warnings*")))
     (if w
