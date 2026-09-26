@@ -58,7 +58,7 @@
   (yas-global-mode 1)
   :hook (prog-mode . yas-minor-mode)      ; 强制编程 buffer 启用 (LSP snippet 展开依赖)
   :custom
-  (yas-triggers-in-field t)                ; 嵌套 snippet 允许
+  (yas-triggers-in-field nil)              ; TAB 在占位符内固定跳下一个字段 (嵌套 snippet 改从补全弹窗选)
   (yas-use-menu nil)                       ; 隐藏菜单栏 YASnippet 菜单 (只留快捷键)
   :config
   ;; yasnippet-snippets: 社区通用 snippet 库

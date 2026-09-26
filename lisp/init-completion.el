@@ -192,15 +192,23 @@ let 动态绑定, :around advice 读取。")
   (corfu-auto-prefix 1)                    ; 1 字符即触发 (支持 obj. 点访问)
   (corfu-cycle t)                          ; 候选循环
   (corfu-quit-no-match 'separator)         ; 无匹配按分隔符收菜单
-  (corfu-preview-current t)                ; 候选文档预览
-  (corfu-preselect 'prompt)                ; 默认选中首项
+  (corfu-preview-current t)                ; 预览当前候选 (t=选中即预览, nil=不预览)
+  (corfu-preselect 'first)                 ; 默认选中首项 (否则 Enter 时没有候选可确认)
   (corfu-on-exact-match nil)               ; 完全匹配也保留菜单, 方便看同名词
   :config
-  ;; Tab 接受补全
-  (define-key corfu-map (kbd "TAB") #'corfu-insert)
-  (define-key corfu-map (kbd "<tab>") #'corfu-insert)
-  ;; RET 不抢 (避免误提交, LSP 自动补全时常用 Tab 接受)
-  (define-key corfu-map (kbd "<return>") nil)
+  ;; ---- 补全键位: Enter 确认候选, Tab 留给 snippet 占位符 ----
+  ;; Enter 接受当前候选 (RET 与 <return> 都绑: GUI 下 <return> 由 function-key-map
+  ;; 翻译成 RET, 两处都写才不受翻译规则影响)。
+  (define-key corfu-map (kbd "RET") #'corfu-insert)
+  (define-key corfu-map (kbd "<return>") #'corfu-insert)
+  ;; Tab 不再接受补全: 从 corfu-map 摘掉 TAB/<tab> (赋 nil = 解除绑定), 按键继续往下找 →
+  ;;   a) snippet 占位符内: 字段 overlay 上的 keymap 优先级高于 minor mode map,
+  ;;      TAB 命中 yas-next-field (跳下一个占位符);
+  ;;   b) 光标前是 snippet 触发词: yas-minor-mode-map 的 TAB 展开模板;
+  ;;   c) 其余情况: 落回 mode 自己的 TAB (rust-ts-mode 的缩进)。
+  ;; 选候选仍可用 C-n/C-p (corfu 把 <up>/<down> remap 到 corfu-previous/next)。
+  (define-key corfu-map (kbd "TAB") nil)
+  (define-key corfu-map (kbd "<tab>") nil)
 
   ;; ---- 智能增强 (均为 corfu 自带扩展, 无需额外装包) ----
   ;; 1) 候选文档预览: corfu-echo 在底部 echo 区显示当前候选的签名/文档,

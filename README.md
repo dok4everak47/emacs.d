@@ -33,7 +33,7 @@
 - consult：`M-s g` 项目内 ripgrep 全局搜索、`M-s s` 行内搜索、`C-x b` buffer 切换带预览
 - marginalia：minibuffer 条目右侧注解（文件大小、函数描述等）
 - embark：`C-.` / `M-o` 光标处上下文操作（类似 VSCode 右键菜单）
-- corfu + cape：代码补全弹窗（自动触发、模糊匹配、Tab 接受）
+- corfu + cape：代码补全弹窗（自动触发、模糊匹配、Enter 确认候选、Tab 跳 snippet 占位符）
 
 **开发工具 (lisp/init-tools.el)**
 - which-key：按下前缀键后弹出可用按键列表，不用背快捷键
