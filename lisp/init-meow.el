@@ -417,6 +417,21 @@
     (define-key map (kbd "s s") #'surround-insert)
     (define-key map (kbd "s d") #'surround-delete)
     (define-key map (kbd "s c") #'surround-change)
+    ;; ---- 文件内搜索分支: SPC f (对齐 nvim 的 <leader>f*) ----
+    ;; SPC f s = nvim <leader>fs (Snacks.picker.lsp_symbols, 即 VS Code Cmd+Shift+O):
+    ;; 当前文件符号跳转。lsp-mode 已把 LSP documentSymbol 接进 imenu, 所以
+    ;; consult-imenu 就是它的等价物 (与 M-s i 同一个命令; ide.el 特意关掉
+    ;; lsp-ui-imenu, 让 imenu 走 consult 而不是侧边树)。
+    (define-key map (kbd "f s") #'consult-imenu)
+    ;; 其余搜索键前移到 SPC f 之后: M-s 那组的字母原样搬过来, 不依赖 Meta 键。
+    ;;   SPC f f 项目内找文件 (fd)   SPC f g 项目内 grep (rg)
+    ;;   SPC f l 当前 buffer 行内搜索  SPC f o 大纲跳转   SPC f m 书签
+    ;; (符号搜索用 s 而不是 i: 对齐 nvim <leader>fs)
+    (define-key map (kbd "f f") #'consult-fd)
+    (define-key map (kbd "f g") #'consult-ripgrep)
+    (define-key map (kbd "f l") #'consult-line)
+    (define-key map (kbd "f o") #'consult-outline)
+    (define-key map (kbd "f m") #'consult-bookmark)
     ;; Vim 手感分支: 原单键 x/o/O 挪来的低频命令 (2026-08)
     ;; SPC l = 选整行 (原 meow x); SPC b/B = 列块选择/跳转 (原 meow o/O)
     (define-key map (kbd "l") #'my-meow-vim-select-line)
