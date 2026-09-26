@@ -397,6 +397,8 @@
 (defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
 (defconst my-dash-card-rows 5 "Max content rows per section.")
 (defconst my-dash-card-gap 4 "Horizontal gap between nav buttons, in cols.")
+(defconst my-dash-matrix-gutter 6 "Horizontal gap between 2x2 matrix cells, in cols.")
+(defconst my-dash-matrix-min-col 24 "Min cell width (cols) required for the 2x2 matrix layout.")
 
 (defvar my-dash--cache nil
   "Cached dashboard data: (recents projects agenda bookmarks).")
@@ -622,6 +624,14 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
     (dolist (l lines)
       (insert (if (equal l "") "\n" (concat pad l "\n"))))))
 
+(defun my-dash--lines-width (lines)
+  "Display width of the widest line in LINES (0 when empty)."
+  (if lines (apply #'max (mapcar #'string-width lines)) 0))
+
+(defun my-dash--pad (str width)
+  "Right-pad STR with spaces to display WIDTH (never truncates)."
+  (concat str (make-string (max 0 (- width (string-width str))) ?\s)))
+
 (defun my-dash--merge-face (base extra)
   "BASE (图标原有 face, 可为 nil) 与 EXTRA (前景色 plist) 合成 face 列表."
   (if base (list base extra) extra))
@@ -698,15 +708,58 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
     (my-dash--insert-block (my-dash--navigator-flow))
     (insert "\n")))
 
+(defun my-dash--section-lines (sec text-width)
+  "Render SEC (ICON LABEL ROWS) as one cell: heading + TEXT-WIDTH-truncated rows."
+  (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec))
+        (lines nil))
+    (push (concat (my-dash--icon icon) "  "
+                  (propertize label 'face (list :foreground my-dash-c-cardhead
+                                                :weight 'bold)))
+          lines)
+    (dolist (r rows)
+      (let* ((fg `(:foreground ,(nth 3 r)))
+             (act (nth 2 r))
+             (txt (my-dash--trunc (nth 1 r) text-width)))
+        (push (concat "  " (my-dash--icon (nth 0 r)) " "
+                      (if act
+                          (propertize txt 'face fg
+                                      'keymap (my-dash--click-map act)
+                                      'mouse-face 'highlight
+                                      'help-echo (format "RET: %S" act))
+                        (propertize txt 'face fg)))
+              lines)))
+    (nreverse lines)))
+
+(defun my-dash--matrix-lines (cells)
+  "Lay CELLS (four cell line lists) out as 2x2, row-major: 上排 0/1, 下排 2/3.
+每格右补空格对齐到本列最宽行 (列宽取该列上下两格的较宽者), 列间留
+`my-dash-matrix-gutter', 两行之间空一行."
+  (let* ((cw (mapcar (lambda (i)
+                       (max (my-dash--lines-width (nth i cells))
+                            (my-dash--lines-width (nth (+ i 2) cells))))
+                     '(0 1)))
+         (gutter (make-string my-dash-matrix-gutter ?\s))
+         (lines nil))
+    (dotimes (r 2)
+      (let* ((a (nth (* 2 r) cells))
+             (b (nth (1+ (* 2 r)) cells))
+             (n (max (length a) (length b))))
+        (dotimes (i n)
+          (push (concat (my-dash--pad (or (nth i a) "") (nth 0 cw))
+                        gutter
+                        (my-dash--pad (or (nth i b) "") (nth 1 cw)))
+                lines)))
+      (when (= r 0) (push "" lines)))
+    (nreverse lines)))
+
 (defun my-dash-insert-sections ()
-  "极简留白: 四个分区 (标题 + 纯列表) 作为一个块居中, 无框线."
+  "极简留白: 四个分区 (标题 + 纯列表). 窗口够宽排 2x2 矩阵, 窄则退回单列堆叠."
   (unless my-dash--cache
     (my-dash--refresh-cache))
   (let ((recents (nth 0 my-dash--cache))
         (projects (nth 1 my-dash--cache))
         (agenda (nth 2 my-dash--cache))
-        (bookmarks (nth 3 my-dash--cache))
-        lines)
+        (bookmarks (nth 3 my-dash--cache)))
     (let ((sections
            (list
             (list "nf-fa-files_o" "Recent Files"
@@ -737,29 +790,21 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
                             (list "nf-md-bookmark" (car b)
                                   (list 'bookmark-jump (car b)) my-dash-c-bookmark))
                           (seq-take bookmarks my-dash-card-rows))))))
-      (dolist (sec sections)
-        (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec)))
-          (push (concat (my-dash--icon icon) "  "
-                        (propertize label 'face (list :foreground my-dash-c-cardhead
-                                                      :weight 'bold)))
-                lines)
-          (dolist (r rows)
-            (let* ((fg `(:foreground ,(nth 3 r)))
-                   (act (nth 2 r))
-                   (txt (my-dash--trunc (nth 1 r) 44)))
-              (push (concat "  " (my-dash--icon (nth 0 r)) " "
-                            (if act
-                                (propertize txt 'face fg
-                                            'keymap (my-dash--click-map act)
-                                            'mouse-face 'highlight
-                                            'help-echo (format "RET: %S" act))
-                              (propertize txt 'face fg)))
-                    lines)))
-          (push "" lines))))
-    (setq lines (nreverse lines))
-    (when (equal (car (last lines)) "")
-      (setq lines (nbutlast lines)))
-    (my-dash--insert-block lines)))
+      (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
+             (ww (if win (window-width win) 80))
+             ;; 2x2 要求两列各留够宽度, 否则退回单列 (窄窗口/分屏下更易读)
+             (two-col (>= ww (+ (* 2 my-dash-matrix-min-col) my-dash-matrix-gutter)))
+             (text-width (if two-col
+                             ;; 每格文本上限 44 (与单列时一致), 窗窄时收窄避免撞列
+                             (max 16 (min 44 (- (/ (- ww my-dash-matrix-gutter) 2) 4)))
+                           44))
+             (cells (mapcar (lambda (sec) (my-dash--section-lines sec text-width))
+                            sections)))
+        (my-dash--insert-block
+         (if two-col
+             (my-dash--matrix-lines cells)
+           (cdr (apply #'append
+                       (mapcar (lambda (c) (cons "" c)) cells)))))))))
 
 (defvar my-dash--resize-timer nil "resize 防抖 timer.")
 (defun my-dash--resize-rerender (&rest _)
