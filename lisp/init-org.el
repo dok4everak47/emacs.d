@@ -21,6 +21,16 @@
 (defvar org-agenda-custom-commands nil)   ; org-agenda lazy-load 前需声明 (定义在 org-agenda.el)
 ;; 注: 勿 defvar org-agenda-span — defvar 在有值时不会重置, 若置 nil 会覆盖
 ;; org-agenda.el 的 defcustom 默认值(week), 导致 C-c a 报 number-or-marker-p nil。
+(defvar org-agenda-files '("~/org/inbox.org"      ; Agenda 只扫描任务文件 + 节假日
+                           "~/org/projects.org"
+                           "~/org/areas.org"
+                           "~/org/habits.org"
+                           "~/org/gcal-holidays.org")
+  "Agenda 文件清单。
+2026-09-26: 从下面的 `:custom' 提到这里 — org 是 `:defer t' 懒加载的,
+`:custom' 要等 org 本体加载才生效, 而 Dashboard 的 agenda 子进程 (ide.el)
+在启动时 (org 还没加载) 就要读这个变量, 否则抛 void-variable 且卡片永远
+停在 \"Loading calendar…\"。defvar 的值 org 的 defcustom 不会覆盖。")
 (declare-function org-gcal-reload-client-id-secret "org-gcal.el" ())
 
 ;; ---------- org: 核心 ----------
@@ -34,11 +44,7 @@
   (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
   (org-default-notes-file "~/org/inbox.org") ; capture 默认文件
-  (org-agenda-files '("~/org/inbox.org"   ; Agenda 只扫描任务文件 + 节假日
-                      "~/org/projects.org"
-                      "~/org/areas.org"
-                      "~/org/habits.org"
-                      "~/org/gcal-holidays.org"))
+  ;; org-agenda-files 不在这里设 — 见文件顶部 defvar (启动时就要可读)
   (org-log-done 'time)                      ; 完成任务时记录时间戳
   (org-todo-keywords                        ; 任务状态流转 (GTD)
    ;; NEXT=下一步行动 / TODO=待澄清 / DOING=进行中 / WAIT=等待别人
