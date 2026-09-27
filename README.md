@@ -26,14 +26,14 @@
 **IDE 外观 (ide.el)**
 - One Dark 主题、标签页 (tab-bar)、侧边栏文件树 (treemacs)、行号、状态栏
 - 内置 eglot (LSP)、菜单栏"IDE"菜单（GUI 操作）
-- Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（收邮件 / 写邮件 / 文件树 / 退出）+ 最近文件 + 项目列表 + 图标 + 垂直居中
+- Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（邮件 / 文件树 / 退出 / agenda / capture …）+ 2x2 分区（上排 Recent Files · Projects，下排 Agenda · Bookmarks，窗口 <54 列自动退回单列）+ Nerd 图标 + 垂直居中；agenda 卡由子进程异步刷新，万一卡住可 `M-x my-dash-agenda-refresh` 手动重来
 
 **搜索与补全 (lisp/init-completion.el)**
 - vertico + orderless：minibuffer 模糊搜索（空格分隔关键词，顺序无关）
 - consult：`M-s g` 项目内 ripgrep 全局搜索、`M-s s` 行内搜索、`C-x b` buffer 切换带预览
 - marginalia：minibuffer 条目右侧注解（文件大小、函数描述等）
 - embark：`C-.` / `M-o` 光标处上下文操作（类似 VSCode 右键菜单）
-- corfu + cape：代码补全弹窗（自动触发、模糊匹配、Enter 确认候选、Tab 跳 snippet 占位符）
+- corfu + cape：代码补全弹窗（自动触发、模糊匹配、Enter 确认候选；Tab 不接受候选 —— snippet 占位符内跳字段，其余情况交给 yas 展开 / mode 缩进）
 
 **开发工具 (lisp/init-tools.el)**
 - which-key：按下前缀键后弹出可用按键列表，不用背快捷键
