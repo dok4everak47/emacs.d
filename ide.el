@@ -408,13 +408,21 @@
   "Cached dashboard data: (recents projects agenda bookmarks).")
 
 (defun my-dash--trunc (str width)
-  "Truncate STR to display WIDTH, CJK-aware."
+  "Truncate STR to display WIDTH, CJK-aware.
+末尾省略号也占 1 列, 结果宽度保证 <= WIDTH。
+2026-09-26 修: 原来循环只保证 w < WIDTH-1 就停, 最后再补一个宽字符就会
+让结果比 WIDTH 多 1 列 — 2x2 矩阵按 \"行宽 = 4 + text-width\" 做预算,
+多出来这 1 列会让窄窗口 (矩阵 54~56 列) 的右列折行。"
   (let ((sw (string-width str)))
     (if (<= sw width) str
-      (let ((pos 0) (w 0))
-        (while (and (< w (- width 1)) (< pos (length str)))
+      (let ((pos 0) (w 0) (limit (max 0 (1- width))))
+        (while (and (< w limit) (< pos (length str)))
           (setq w (+ w (char-width (aref str pos))))
           (setq pos (1+ pos)))
+        ;; 最后一个字符可能把 w 顶过 limit (宽字) → 退掉它
+        (while (and (> w limit) (> pos 0))
+          (setq pos (1- pos))
+          (setq w (- w (char-width (aref str pos)))))
         (concat (substring str 0 pos) "…")))))
 
 (defun my-dash--icon (icon)
@@ -841,7 +849,9 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
              (text-width (if two-col
                              ;; 每格文本上限 44 (与单列时一致), 窗窄时收窄避免撞列
                              (max 16 (min 44 (- (/ (- ww my-dash-matrix-gutter) 2) 4)))
-                           44))
+                           ;; 单列: 同样按窗口宽收窄 (行宽 = 4 + text-width),
+                           ;; 原来写死 44 → 窗口 <=48 列时行会折行 (2026-09-26)
+                           (max 16 (min 44 (- ww 4)))))
              (cells (mapcar (lambda (sec) (my-dash--section-lines sec text-width))
                             sections)))
         (my-dash--insert-block
