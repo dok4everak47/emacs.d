@@ -52,6 +52,10 @@
   (org-startup-indented t)                  ; 内容自动缩进对齐标题
   (org-hide-leading-stars t)                ; 隐藏前导星号 (更干净)
   (org-startup-truncated nil)               ; 长行折行显示 (默认 t = 截断)
+  ;; 2026-09-27: 打开 .org 就把 [[file:...png]] 显示成图 (只对 GUI frame 有效,
+  ;; 终端里看不到图, 链接照样在)。想临时关掉: C-c C-x C-v 或文件里写
+  ;; #+STARTUP: noinlineimages。显示宽度上限见 org-image-max-width (默认 fill-column)。
+  (org-startup-with-inline-images t)
   (org-ellipsis " ⤵")                       ; 折叠内容显示符号
   (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
