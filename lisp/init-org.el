@@ -502,7 +502,9 @@
 ;; 用法: 光标在任务标题上打卡 (C-c a agenda 里用 I / O 更快)
 ;;   C-c C-x C-i   开始计时 (任务自动转 DOING)
 ;;   C-c C-x C-o   结束计时
-;;   C-c C-x C-r   插入时间报告 (clocktable)
+;;   C-c C-x C-d   在文件里显示各子树累计耗时
+;;   M-x org-clock-report   插入时间报告 (clocktable)
+;;   注: Emacs 30 的 org 里 C-c C-x C-r 是 radio button, 不是时间报告
 ;; 时间报告模板 (光标放 #+BEGIN 行上按 C-c C-c 刷新):
 ;;   #+BEGIN: clocktable :scope agenda :maxlevel 2 :block thisweek
 ;;   #+END:
