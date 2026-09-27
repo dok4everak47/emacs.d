@@ -103,20 +103,23 @@
   (meow-delete)
   (meow-insert))
 
-(defun my-meow-vim-select-line ()
-  "选中整行 (原 meow x 的功能, 挪到 SPC l). 保留 meow-line 语义."
-  (interactive)
-  (meow-line))
+(defun my-meow-vim-select-line (&optional arg)
+  "选中整行 (原 meow x 的功能, 挪到 SPC l). 保留 meow-line 语义.
+ARG 为前缀参数, 用于按行扩展选区 (meow-line 需要 n, 故此处必须透传)."
+  (interactive "p")
+  (meow-line arg))
 
-(defun my-meow-vim-select-block ()
-  "选中矩形块 (原 meow o 的功能, 挪到 SPC b). 保留 meow-block 语义."
-  (interactive)
-  (meow-block))
+(defun my-meow-vim-select-block (&optional arg)
+  "选中矩形块 (原 meow o 的功能, 挪到 SPC b). 保留 meow-block 语义.
+ARG 为前缀参数 (meow-block 需要 arg, 故此处必须透传)."
+  (interactive "P")
+  (meow-block arg))
 
-(defun my-meow-vim-to-block ()
-  "跳到矩形块 (原 meow O 的功能, 挪到 SPC B). 保留 meow-to-block 语义."
-  (interactive)
-  (meow-to-block))
+(defun my-meow-vim-to-block (&optional arg)
+  "跳到矩形块 (原 meow O 的功能, 挪到 SPC B). 保留 meow-to-block 语义.
+ARG 为前缀参数 (meow-to-block 需要 arg, 故此处必须透传)."
+  (interactive "P")
+  (meow-to-block arg))
 
 (defun my-meow-vim-kill-region ()
   "删除选区 (Vim d, 即原 meow s / meow-kill)."
@@ -437,6 +440,14 @@
     (define-key map (kbd "l") #'my-meow-vim-select-line)
     (define-key map (kbd "b") #'my-meow-vim-select-block)
     (define-key map (kbd "B") #'my-meow-vim-to-block)
+    ;; ---- 补回 meow 内置 leader 键 (2026-09) ----
+    ;; meow 默认把 ? / / 和数字挂在它自己的 leader keymap 上 (见 my-meow-setup
+    ;; 里的 meow-leader-define-key)。这里把 meow-keypad-leader-dispatch 换成了
+    ;; 本 keymap, keypad 只查这一个 map, 不补回就会退化成往 buffer 里输入字面量。
+    (define-key map (kbd "?") #'meow-cheatsheet)
+    (define-key map (kbd "/") #'meow-keypad-describe-key)
+    (dolist (digit '("1" "2" "3" "4" "5" "6" "7" "8" "9" "0"))
+      (define-key map (kbd digit) #'meow-digit-argument))
     map)
   "Meow leader 扩展 map (SPC 前缀, 不占用 C-c 键位).")
 
