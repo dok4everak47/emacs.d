@@ -453,6 +453,12 @@
 
 ;; ---------- org-capture: 快速捕获 ----------
 ;; C-c c 弹出模板菜单, 选模板后快速记录, 保存到对应文件
+;; 2026-09-27: 加 N = 主题笔记 (每次新建一个文件, 不是往固定文件追加)。
+;; 用 plain 型而非 entry 型 — entry 要求模板以 * 开头, 否则报
+;; "Template is not a valid Org entry or tree", 而主题笔记需要以
+;; #+TITLE / #+FILETAGS / #+STARTUP 这些文件级关键字开头。
+;; file 目标给函数时会被 org-capture-expand-file funcall, 借此在选中模板后
+;; 提示输入文件名 (相对路径按 org-directory 展开, 文件不存在会自动创建)。
 (setq org-capture-templates
       '(("t" "任务 (TODO)" entry (file "~/org/inbox.org")
          "* TODO %?\n  :PROPERTIES:\n  - Created: %U\n  :END:\n")
@@ -461,7 +467,16 @@
         ("l" "链接 (带来源)" entry (file "~/org/links.org")
          "* %?\n  %U\n  Source: %a\n  %i\n")
         ("j" "日记" entry (file+datetree "~/org/journal.org")
-         "* %?\n  %U\n")))
+         "* %?\n  %U\n")
+        ("N" "主题笔记 (新建文件)" plain
+         (file (lambda ()
+                 (let ((name (read-string "笔记文件名: ")))
+                   (when (string-empty-p name)
+                     (user-error "未输入文件名, 已取消"))
+                   (expand-file-name
+                    (if (string-suffix-p ".org" name) name (concat name ".org"))
+                    org-directory))))
+         "#+TITLE: %^{标题}\n#+FILETAGS: :%^{标签}:\n#+STARTUP: overview\n\n* %?\n")))
 
 ;; ---------- org-table: 纯文本电子表格 ----------
 ;; 快速上手 (org 文件里直接敲, 无需任何配置):
