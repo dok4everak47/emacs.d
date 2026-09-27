@@ -118,6 +118,27 @@
      ("CANC"  . (:background "#5c6370" :foreground "#282c34" :weight bold))
      ("SOMEDAY" . (:background "#5c6370" :foreground "#abb2bf" :weight bold)))))
 
+;; ---------- org-download: 截图 / 剪贴板图片直接进笔记 ----------
+;; 截图或把图片丢进来 → 拷到「当前笔记目录/images/」→ 自动插好 [[file:images/xxx.png]]。
+;; macOS 圈选截图走系统自带的 screencapture -i; 剪贴板粘贴 (org-download-clipboard)
+;; 在 macOS 上依赖 homebrew 的 pngpaste, 没装会提示 "Please install the pngpaste
+;; program" — 那条路可以用内置的 M-x yank-media 代替 (org 自带 image/.* handler)。
+;; 注意: 终端 Emacs 不渲染图片, TTY 里只看到链接; GUI frame 才能显示。
+(use-package org-download
+  :after org
+  :bind (:map org-mode-map
+              ("C-c C-x y" . org-download-clipboard)  ; 剪贴板里的图 → images/ + 插链接
+              ("C-c C-x i" . org-download-screenshot)) ; 圈选截图 (screencapture -i)
+  :init
+  ;; 默认会在链接上面插一行 "#+DOWNLOADED: <路径> @ <时间>"; 截图路径是 /tmp, 噪音, 关掉
+  (setq org-download-annotate-function (lambda (_link) ""))
+  :custom
+  (org-download-image-dir "images")                     ; 相对当前笔记, 统一放 images/
+  (org-download-heading-lvl nil)                        ; 不再按标题再套一层子目录
+  (org-download-screenshot-method "screencapture -i %s") ; macOS 圈选截图
+  :config
+  (org-download-enable))                                ; 拖拽 URL/文件 交给它处理
+
 ;; ---------- org: meow 键位 (原 evil-org 移植, 2026-08 迁到 meow) ----------
 ;; 历史: evil-org 2022 停更 → 先用原生 evil 复刻 (my-org-* 前缀, 编译零警告),
 ;; 2026-08 随 evil→meow 迁移: 命令逻辑全部保留, 外壳去掉 evil 宏,
