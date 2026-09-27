@@ -126,6 +126,21 @@ ARG 为前缀参数 (meow-to-block 需要 arg, 故此处必须透传)."
   (interactive)
   (meow-kill))
 
+;; d 无选区时的退路 (2026-09): 退回"删到行尾"(= C-k), 即原 meow-kill 的默认 fallback。
+;; 必须补这一条, 因为 fallback 表是按 this-command 查的 (见 meow--selection-fallback),
+;; 而 d 现在绑的是上面的包装函数名, 不再是 meow-kill —— 不补就只会报 "No selection",
+;; 无选区时按 d 没有任何反应。
+;;
+;; 实测行为 (2026-09, 真实 TTY + 显示中的 buffer):
+;;   在 "aaa\nbbb\nccc" 的第 2 行上, 无选区按 d → "aaa\nb\nccc" (删到行尾)
+;;   连按 d d → "aaa\nbccc" (两次 C-k, 不是 Vim 的"删整行")
+;;   ⚠️ 想复刻 Vim 的 dd (一次删掉整行) 应改用 kill-whole-line:
+;;      实测 d → "aaa\nccc", d d → "aaa\n"
+;;   这里保持 meow-C-k 是为了忠于 meow 原设计 (meow-kill 的默认 fallback 就是它)。
+;; 注: 删整行的正规做法仍是 SPC l 选中整行再 d。
+(add-to-list 'meow-selection-command-fallback
+             '(my-meow-vim-kill-region . meow-C-k))
+
 
 ;; ---------- QWERTY 布局 (官方示例, 见 meow repo KEYBINDING_QWERTY.org) ----------
 (defun my-meow-setup ()
