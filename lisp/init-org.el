@@ -470,7 +470,12 @@
          "* %?\n  %U\n")
         ("N" "主题笔记 (新建文件)" plain
          (file (lambda ()
-                 (let ((name (read-string "笔记文件名: ")))
+                 ;; 已有主题可补全 (选到已有文件 = 往它末尾追加新骨架, 不是覆盖);
+                 ;; 也可能直接输入候选里没有的新名字 → 新建一个主题文件。
+                 (let ((name (completing-read
+                              "笔记文件名 (新名字 = 新建): "
+                              (mapcar #'file-name-nondirectory (my-org-note-files))
+                              nil nil)))
                    (when (string-empty-p name)
                      (user-error "未输入文件名, 已取消"))
                    (expand-file-name
@@ -595,6 +600,7 @@
 (global-set-key (kbd "C-c a") #'org-agenda)         ; 日程/任务总览
 (global-set-key (kbd "C-c c") #'org-capture)        ; 快速捕获
 (global-set-key (kbd "C-c l") #'org-store-link)      ; 存储链接 (org 文件可插入)
+;; C-c i = 笔记总入口 (my-org-note-open, 见下方"笔记总入口"一节)
 
 ;; ---------- 笔记索引自动重建 ----------
 ;; 保存 ~/org/ 下笔记文件时, 自动重建 ~/org/index.org (笔记总入口)。
@@ -686,6 +692,37 @@
       (my-org-rebuild-index))))
 
 (add-hook 'after-save-hook #'my-org-maybe-rebuild-index)
+
+;; ---------- 笔记总入口: 一个命令进出所有主题笔记 ----------
+;; 组织方式: 每个主题一个文件 (~/org/主题.org), 但入口只有一个 —— C-c i
+;;   选已有主题      → 直接打开那个文件 (补全文件名, 不会拼错/写重)
+;;   ＋ 新建主题…    → 走 capture 模板 N (提示文件名/标题/标签, 自动建骨架)
+;;   ⌂ 全部主题一览  → 打开 index.org (自动生成的全部标题索引)
+(defcustom my-org-note-exclude-files
+  '("CAPTURE-notes.org" "links.org" "journal.org")
+  "不算主题笔记的文件 (capture 落点): 不进 C-c i 候选, 但仍进索引。"
+  :type '(repeat string)
+  :group 'org)
+
+(defun my-org-note-files ()
+  "返回主题笔记文件列表 (绝对路径): ~/org 下笔记文件去掉 capture 落点。"
+  (seq-remove (lambda (f)
+                (member (file-name-nondirectory f) my-org-note-exclude-files))
+              (my-org-index-files)))
+
+(defun my-org-note-open ()
+  "笔记总入口: 挑一个已有主题笔记打开, 或新建一个主题 (C-c i)。"
+  (interactive)
+  (let* ((names (mapcar #'file-name-nondirectory (my-org-note-files)))
+         (all "⌂ 全部主题一览 (index.org)")
+         (new "＋ 新建主题…")
+         (choice (completing-read "主题笔记: " (append (list all new) names) nil t)))
+    (cond
+     ((equal choice all) (find-file (expand-file-name "index.org" org-directory)))
+     ((equal choice new) (org-capture nil "N"))
+     (t (find-file (expand-file-name choice org-directory))))))
+
+(global-set-key (kbd "C-c i") #'my-org-note-open)
 
 ;; ---------- 确保 org 目录存在 ----------
 (unless (file-exists-p org-directory)
