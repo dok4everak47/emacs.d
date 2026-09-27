@@ -603,6 +603,7 @@
 (global-set-key (kbd "C-c c") #'org-capture)        ; 快速捕获
 (global-set-key (kbd "C-c l") #'org-store-link)      ; 存储链接 (org 文件可插入)
 ;; C-c i = 笔记总入口 (my-org-note-open, 见下方"笔记总入口"一节)
+;; C-c I = 笔记索引页 index.org (my-org-note-index)
 
 ;; ---------- 笔记索引自动重建 ----------
 ;; 保存 ~/org/ 下笔记文件时, 自动重建 ~/org/index.org (笔记总入口)。
@@ -700,6 +701,7 @@
 ;;   选已有主题      → 直接打开那个文件 (补全文件名, 不会拼错/写重)
 ;;   ＋ 新建主题…    → 走 capture 模板 N (提示文件名/标题/标签, 自动建骨架)
 ;;   ⌂ 全部主题一览  → 打开 index.org (自动生成的全部标题索引)
+;; C-c I = 直接跳到那份索引页 (不经菜单), 打开前顺手重建一遍
 (defcustom my-org-note-exclude-files
   '("CAPTURE-notes.org" "links.org" "journal.org")
   "不算主题笔记的文件 (capture 落点): 不进 C-c i 候选, 但仍进索引。"
@@ -720,11 +722,32 @@
          (new "＋ 新建主题…")
          (choice (completing-read "主题笔记: " (append (list all new) names) nil t)))
     (cond
-     ((equal choice all) (find-file (expand-file-name "index.org" org-directory)))
+     ((equal choice all) (my-org-note-index))
      ((equal choice new) (org-capture nil "N"))
      (t (find-file (expand-file-name choice org-directory))))))
 
+(defun my-org-note-index ()
+  "打开笔记索引 index.org (全部主题的一览页), 打开前重建一遍 (C-c I)。"
+  (interactive)
+  (let* ((file (expand-file-name "index.org" org-directory))
+         (buf (get-file-buffer file)))
+    (cond
+     ;; 索引开着且没改动 → 重建后原地刷新, 避免出现"文件已在磁盘上改变"的提示
+     ((and buf (not (buffer-modified-p buf)))
+      (my-org-rebuild-index)
+      (with-current-buffer buf (revert-buffer t t))
+      (pop-to-buffer buf))
+     ;; 索引开着且你正在改它 → 只切过去, 不动磁盘 (保存时 after-save-hook 会跳过它)
+     (buf
+      (pop-to-buffer buf)
+      (message "index.org 有未保存的改动, 这次没重建索引"))
+     ;; 没开着 → 先重建再打开
+     (t
+      (my-org-rebuild-index)
+      (find-file file)))))
+
 (global-set-key (kbd "C-c i") #'my-org-note-open)
+(global-set-key (kbd "C-c I") #'my-org-note-index)
 
 ;; ---------- 确保 org 目录存在 ----------
 (unless (file-exists-p org-directory)
