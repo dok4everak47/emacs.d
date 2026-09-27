@@ -960,10 +960,10 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题/footer 用 DotGothic16 点阵 (含完整 ASCII 字形, 英文直接走点阵;
+  ;; 标题/footer 用 MonaspiceNe NFM (Monaspace Neon 等宽, 技术感, 与磷光绿 CRT 配色搭;
   ;; 全局 fontset 只把 CJK 映射到 PingFang, 不映射拉丁字母, 故无需 fontset 兜底)。
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "DotGothic16"))))
-  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "DotGothic16")))))
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "MonaspiceNe NFM"))))
+  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "MonaspiceNe NFM")))))
 
 ;; 启动信息行英文化 (默认 "Emacs started in X seconds")
 (setq dashboard-init-info
