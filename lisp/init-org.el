@@ -56,6 +56,12 @@
   ;; 终端里看不到图, 链接照样在)。想临时关掉: C-c C-x C-v 或文件里写
   ;; #+STARTUP: noinlineimages。显示宽度上限见 org-image-max-width (默认 fill-column)。
   (org-startup-with-inline-images t)
+  ;; 2026-09-27: 内置默认值是 t, 含义是「一律按原图像素宽显示」—— 于是每张图上面
+  ;; 写的 #+ATTR_ORG: :width 全被无视, 只有上面的 max-width 上限管得住它。
+  ;; 置 nil 改成「#+ATTR_ORG 优先 (没写就看第一个 #+ATTR_xxx), 都没有才用原图宽」,
+  ;; 没写 ATTR 的图照样受 max-width 上限约束。想给没写 ATTR 的图定个默认值,
+  ;; 就写 '(800) 这种列表形式。改完 ATTR 想立刻看到效果: C-c C-x C-v 关再开。
+  (org-image-actual-width nil)
   (org-ellipsis " ⤵")                       ; 折叠内容显示符号
   (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
