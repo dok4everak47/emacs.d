@@ -44,9 +44,14 @@
   ;; 打开 .org 文件 / C-c a / C-c c 都由 autoload 触发, 感知不到差别。
   ;; 若想让 org 在启动后空闲时自动热起来, 见文件末尾注释。
   :defer t
+  ;; 2026-09-27: org 默认 org-startup-truncated=t, 长行是「截断」而不是折行 —
+  ;; 长段落会跑出屏幕右边 (行尾一个延续箭头)。置 nil 关掉截断, 再开
+  ;; visual-line-mode: 按单词边界折行, C-n/C-p 也按屏幕行走, 不会一次跳过整段长行。
+  :hook (org-mode . visual-line-mode)
   :custom
   (org-startup-indented t)                  ; 内容自动缩进对齐标题
   (org-hide-leading-stars t)                ; 隐藏前导星号 (更干净)
+  (org-startup-truncated nil)               ; 长行折行显示 (默认 t = 截断)
   (org-ellipsis " ⤵")                       ; 折叠内容显示符号
   (org-return-follows-link t)               ; 光标在链接上按 RET 打开链接 (否则换行)
   (org-directory "~/org")                    ; org 文件根目录
