@@ -152,3 +152,5 @@ nix profile install nixpkgs#enchant nixpkgs#enchant.dev
 
 - 邮箱凭据在 macOS 钥匙串，不在此仓库
 - 想还原默认外观：删除 `ide.el` 和 `init.el` 末尾模块加载段
+- **改了 `lisp/*.el` 却不生效**：`load` 默认优先加载 `.elc`（且不比时间戳），陈旧的字节码会盖过源文件，重启也无用。本仓库已在 `early-init.el` 置 `load-prefer-newer t`（源文件更新即自动读源文件）；若手动编译出 `.elc` 后改了 `.el`，删掉对应 `.elc` 即可（`*.elc` 已 gitignore）。
+- **`Package 'xxx-yy' is unavailable`**：`ide.el` 设了全局 `use-package-always-ensure t`，每个 `use-package` 默认都会去装包。若目标是一个**随别的包附带**的 `.el`（如 `elfeed-link` 由 `elfeed` 提供，非独立包），必须显式写 `:ensure nil`，否则每次启动都报安装失败。
