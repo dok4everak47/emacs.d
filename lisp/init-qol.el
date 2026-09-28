@@ -136,13 +136,23 @@
 ;; 关键点: 先 org-store-link 再调 capture, 并让 elfeed-link 的 :store 函数优先命中
 ;; (org-store-link 会优先调用非 core 的 :store 函数), 于是 %:title/%:external-link/
 ;; %:feed-title/%:authors 才有值。C 在两个模式里都空闲 (阅读页的 R 保留给"可读模式")。
+(defun my-elfeed-capture-with-store ()
+  "已 store-link 后调 capture: 有 R 模板走 R, 否则退回弹完整模板菜单。
+硬写 (org-capture nil \"R\") 在 R 模板不存在时报 \"no capture template referred
+to by R\"; 此处容错 — 配置改了/旧会话未重载时至少能弹菜单手动选, 不白按。
+⚠️ 必须用 (org-capture nil \"R\") 的 KEYS 形参 (第 2 个): 那才是直接选定模板的
+入口; 只调 (org-capture nil) 是不指定模板, 会弹菜单。"
+  (if (assoc "R" org-capture-templates)
+      (org-capture nil "R")
+    (org-capture)))
+
 (defun my-elfeed-capture-entry ()
   "把当前 Elfeed 条目收藏到 ~/org/feeds.org。"
   (interactive)
   (cond
    ((derived-mode-p 'elfeed-show-mode)
     (org-store-link nil)
-    (org-capture nil "R"))
+    (my-elfeed-capture-with-store))
    ((derived-mode-p 'elfeed-search-mode)
     ;; ⚠️ 不要用 elfeed-search-selected: 其 :ignore-region 参数返回"单个 entry
     ;; 结构体"(非列表), (length 结构体) 取槽位数永远 >1 → 老代码只报错不收藏;
@@ -153,7 +163,7 @@
           (progn
             (elfeed-show-entry entry)
             (org-store-link nil)
-            (org-capture nil "R"))
+            (my-elfeed-capture-with-store))
         (user-error "光标不在某条 feed 上, 请把光标移到一条条目再按 C"))))
    (t (call-interactively #'org-capture))))
 
