@@ -25,6 +25,13 @@
 (when (boundp 'native-comp-jit-compilation)
   (setq native-comp-jit-compilation nil))
 
+;; load-prefer-newer (2026-09-28): `load' 默认优先用 .elc, 且不比时间戳 —
+;; 只要 lisp/xxx.elc 存在, 即使 xxx.el 更新也只加载旧字节码。
+;; 症状: 改了 init-org.el 的 capture 模板, 重启后仍报 "no capture template
+;; referred to by R" (加载的是几天前编译的 init-org.elc)。
+;; 设为 t 后, 只有当 .elc 比 .el 新才用 .elc, 源文件更新即自动改回读 .el。
+(setq load-prefer-newer t)
+
 ;; GC 调优 (2026-08-14): 默认 gc-cons-threshold 0.8MB, 加载大量包后触发
 ;; 过于频繁, GC 停顿是 org 文件打开 / 后台 agenda 计算卡顿的主因之一
 ;; (实测 gc-cons-percentage 0.6 后同操作耗时减半)。
