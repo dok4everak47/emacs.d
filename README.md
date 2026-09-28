@@ -68,10 +68,10 @@
 
 **Org Mode (lisp/init-org.el)**
 - org 核心设置：缩进对齐、隐藏前导星号、TODO 状态流转（TODO→DOING→HOLD→DONE/CANC）
-- org-capture 快速捕获：`C-c c` 弹模板菜单（任务/笔记/链接/日记/主题笔记）；主题笔记是唯一会新建文件的模板（提示文件名后写入 `#+TITLE` 骨架）
+- org-capture 快速捕获：`C-c c` 弹模板菜单（任务/笔记/链接/日记/主题笔记/收藏链接）；主题笔记是唯一会新建文件的模板（提示文件名后写入 `#+TITLE` 骨架）；收藏链接模板 `R` 由 Elfeed 里按 `C` 自动触发（见下方 elfeed 条）
 - 笔记总入口：`C-c i` 列出 ~/org 下所有主题笔记（一个主题一个文件），选中即打开；选「＋ 新建主题…」走 capture `N` 建新主题，选「⌂ 全部主题一览」打开自动生成的 index.org；`C-c I` 直接翻那份索引页（打开前自动重建）
 - org-agenda 日程总览：`C-c a` 跨文件查看所有 TODO 和日程
-- GTD 周回顾（`C-c a R`）一次拉齐 6 张清单：本周日程 → 行动池（自动排除 habits.org 的重复习惯）→ 等待中 → 僵死项目（`org-stuck-projects` 判据：带 `:project:` 标签的一级标题、子树里没有任何非关闭 TODO）→ 全部项目 → 将来也许；`C-c a i` 是收件箱清零视图，只扫 inbox.org
+- GTD 周回顾（`C-c a R`）一次拉齐 6 张清单：本周日程 → 行动池（自动排除 habits.org 的重复习惯）→ 等待中 → 僵死项目（`org-stuck-projects` 判据：带 `:project:` 标签的一级标题、子树里没有任何非关闭 TODO）→ 全部项目 → 将来也许；`C-c a i` 是收件箱清零视图（只扫 inbox.org），`C-c a f` 是 Feeds 收藏视图（只扫 feeds.org，收 RSS 收藏）
 - 任务收集只有一个入口：`C-c c t` 落 `inbox.org`，整理时 `C-c C-w` 归位到 `projects.org`；`notes.org` 只放笔记不放任务（2026-09-28 清理了它与 inbox 的三条重复任务）
 - org-babel 文学编程：代码块可直接执行（Python / Shell / Emacs Lisp）
 - org-modern 现代外观：符号替代星号、TODO 关键字彩色背景
