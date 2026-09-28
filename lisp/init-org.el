@@ -548,9 +548,10 @@
                     (if (string-suffix-p ".org" name) name (concat name ".org"))
                     org-directory))))
          "#+TITLE: %^{标题}\n#+FILETAGS: :%^{标签}:\n#+STARTUP: overview\n\n* %?\n")
-        ;; 2026-09-28: R = 收藏链接。从 Elfeed 里按 R 直接调用 (见 init-qol.el),
+        ;; 2026-09-28: R = 收藏链接。在 Elfeed 里按 C 调用 (见 init-qol.el);
         ;; 靠 elfeed-link + org-store-link 把标题/链接/作者填进下面的占位符。
-        ("R" "收藏链接 (读出)" entry (file+headline "~/org/feeds.org" "收藏")
+        ;; (阅读页 R 被 elfeed-show-readable 占着, 故用空闲的 C。)
+        ("R" "收藏链接 (Elfeed)" entry (file+headline "~/org/feeds.org" "收藏")
          "* [[%:external-link][%:title]]\n  :PROPERTIES:\n  :CREATED: %U\n  :END:\n  来源: %:feed-title / 作者: %:authors\n")))
 
 ;; ---------- org-table: 纯文本电子表格 ----------
