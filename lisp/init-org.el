@@ -547,7 +547,11 @@
                    (expand-file-name
                     (if (string-suffix-p ".org" name) name (concat name ".org"))
                     org-directory))))
-         "#+TITLE: %^{标题}\n#+FILETAGS: :%^{标签}:\n#+STARTUP: overview\n\n* %?\n")))
+         "#+TITLE: %^{标题}\n#+FILETAGS: :%^{标签}:\n#+STARTUP: overview\n\n* %?\n")
+        ;; 2026-09-28: R = 收藏链接。从 Elfeed 里按 R 直接调用 (见 init-qol.el),
+        ;; 靠 elfeed-link + org-store-link 把标题/链接/作者填进下面的占位符。
+        ("R" "收藏链接 (读出)" entry (file+headline "~/org/feeds.org" "收藏")
+         "* [[%:external-link][%:title]]\n  :PROPERTIES:\n  :CREATED: %U\n  :END:\n  来源: %:feed-title / 作者: %:authors\n")))
 
 ;; ---------- org-table: 纯文本电子表格 ----------
 ;; 快速上手 (org 文件里直接敲, 无需任何配置):
@@ -734,8 +738,9 @@
 ;; 跨文件跳标题链接: [[file:路径::*标题][显示名]]
 (defcustom my-org-index-exclude-files
   '("index.org" "inbox.org" "projects.org" "areas.org" "habits.org"
-    "someday.org" "gcal.org" "gcal-holidays.org" "archive.org")
-  "不进笔记索引的文件名 (任务类/日历类 + index 自身)。除此外 ~/org/ 下所有 .org 自动索引。"
+    "someday.org" "gcal.org" "gcal-holidays.org" "archive.org"
+    "feeds.org")                       ; 2026-09-28: elfeed 收藏存档, 不进笔记索引
+  "不进笔记索引的文件名 (任务类/日历类 + index 自身 + elfeed 收藏)。除此外 ~/org/ 下所有 .org 自动索引。"
   :type '(repeat string)
   :group 'org)
 

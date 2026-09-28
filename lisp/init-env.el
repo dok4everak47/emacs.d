@@ -1,13 +1,30 @@
-;;; init-env.el --- 环境集成 (PATH / direnv / snippets / treesit) -*- lexical-binding: t -*-
+;;; init-env.el --- 环境集成 (代理 / PATH / direnv / snippets / treesit) -*- lexical-binding: t -*-
 
 ;;; Commentary:
 ;;
 ;; exec-path-from-shell: 从 shell 继承 PATH (nix/homebrew 的命令在 GUI Emacs 里才能找到)
+;; url-proxy-services: 给内置 url.el 系 (org-gcal / elfeed / eww / 包管理) 挂代理
 ;; envrc: direnv 集成 (进入 .envrc 项目目录自动设置环境变量)
 ;; yasnippet: 代码片段模板展开
 ;; treesit-auto: 自动安装 tree-sitter 语法, 代码高亮/缩进更精准
 
 ;;; Code:
+
+;; ---------- url-proxy-services: 内置 url.el 走代理 ----------
+;; shell 已导出 http_proxy/https_proxy=127.0.0.1:7890 (本机 ClashBar 混合口),
+;; 但 Emacs 的 urllib 不读这些环境变量 — url-proxy-services 默认 nil, 于是
+;; org-gcal (googleapis.com) / elfeed (国外 RSS) / eww / package-refresh
+;; 全部直连, 被墙就干等超时。
+;;
+;; 设 no_proxy 排除清单: 本地回环 + 本机已直连的国内域名 (飞书 / 火山方舟 /
+;; moonshot) — 与 shell 的 $no_proxy 保持一致。条目可用正则 (如 "\\.feishu\\.cn")。
+;; ⚠️ 只加 "http"/"https": smtpmail 走 socket 隧道 (见 init.el) 不经这里;
+;;    TRAMP 的 ssh 亦不走 url.el — 加代理不影响它们。
+(defvar url-proxy-services)
+(setq url-proxy-services
+      '(("http"  . "127.0.0.1:7890")
+        ("https" . "127.0.0.1:7890")
+        ("no_proxy" . "localhost\\|127\\.0\\.0\\.1\\|::1\\|feishu\\.cn\\|larksuite\\.com\\|volces\\.com\\|moonshot\\.cn")))
 
 ;; ---------- exec-path-from-shell: 继承 shell PATH ----------
 ;; GUI Emacs 不继承 shell 的 PATH (nix/homebrew 的命令找不到)

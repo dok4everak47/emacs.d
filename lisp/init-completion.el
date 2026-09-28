@@ -8,6 +8,7 @@
 ;; marginalia: minibuffer 条目右侧注解
 ;; embark: 光标处上下文操作 (类似右键菜单)
 ;; corfu: 代码补全弹窗 (轻量, 基于 child frame)
+;; wgrep: 让搜索 (consult-ripgrep/grep) 结果可编辑并批量写回
 
 ;;; Code:
 
@@ -58,6 +59,17 @@
   ;; consult 不再绑 consult-project-function: consult-projectile 接管
   ;; 项目相关候选 (consult-projectile-find-file/switch-project/recentf)。
   ;; dired-sidebar 走 projectile 检测根目录 — 三者联动。
+
+;; ---------- wgrep: 搜索结果直接编辑 (搜完能改) ----------
+;; consult-ripgrep / consult-grep 的结果落在只读的 *grep* buffer。wgrep 让它
+;; 可编辑: C-c C-p 进入 wgrep 模式 → 改候选里的匹配行 → C-c C-c 一次写回
+;; 所有文件 (C-c C-k 放弃)。适合跨文件批量改配置项 / 重命名变量。
+;; 复用 consult 的 M-s g 做搜索, 不改任何现有键位 (wgrep 自带 grep-mode 键)。
+(use-package wgrep
+  :ensure t
+  :hook (grep-mode . wgrep-setup)          ; 进 grep/consult-ripgrep 结果即挂好按键
+  :custom
+  (wgrep-auto-save-buffer t))              ; C-c C-c 直接写盘, 不再逐个确认
 
 ;; ---------- consult-dir: 目录选择 (C-x D 选目录后进 dired) ----------
 ;; C-x d 是原生 dired; C-x D 弹 consult-dir 候选 (项目根/项目/recentf/bookmark

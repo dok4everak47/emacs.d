@@ -1,4 +1,4 @@
-;;; init-qol.el --- 生活质感补丁 (目录整洁 / 持久化 / 格式化 / 阅读) -*- lexical-binding: t -*-
+;;; init-qol.el --- 生活质感补丁 (目录整洁 / 持久化 / 格式化 / 会话 / 拼写 / 阅读) -*- lexical-binding: t -*-
 
 ;;; Commentary:
 ;;
@@ -11,7 +11,9 @@
 ;; apheleia         : 保存时自动格式化 (nix 除外, 该语言已由 eglot 负责)
 ;; vterm-toggle     : 弹出式终端, C-c T 从底部拉起 / 收起
 ;; ace-window + avy : C-c g 选窗口 / 跳字符; 原生 C-x 前缀绑定 (s- / M-o 旁路)
-;; elfeed           : 终端里的 RSS 阅读器 (对比阅读, 不碰 ~/org 笔记)
+;; elfeed           : 终端里的 RSS 阅读器 (按 C 收藏到 ~/org/feeds.org)
+;; save-place / auto-revert / repeat-mode : 光标位置持久化 / 外部改动自动重载 / 命令连按
+;; jinx             : 实时拼写检查 (enchant 引擎, 只查英文)
 ;; 杂项             : delete-by-moving-to-trash / pixel-scroll / recentf 调优 / ace 窗口
 
 ;;; Code:
@@ -122,6 +124,83 @@
   :after elfeed
   :config
   (elfeed-org))
+
+;; elfeed-link: 让 elfeed 条目能被 org-store-link / org-capture 识别,
+;; 这样从阅读页就能把"当前这条"抓进 ~/org (取到 :title / :external-link 等元数据)。
+(use-package elfeed-link
+  :after elfeed
+  :demand t)   ; elfeed-link.el 随 elfeed 包提供, 非独立包: 不能 :ensure (会去找不存在的 "elfeed-link")
+
+;; ---------- elfeed 收藏到 org: C 键 ----------
+;; 搜索页/阅读页按 C → org-capture 模板 "R" → 追加进 ~/org/feeds.org 的"收藏"标题。
+;; 关键点: 先 org-store-link 再调 capture, 并让 elfeed-link 的 :store 函数优先命中
+;; (org-store-link 会优先调用非 core 的 :store 函数), 于是 %:title/%:external-link/
+;; %:feed-title/%:authors 才有值。C 在两个模式里都空闲 (阅读页的 R 保留给"可读模式")。
+(defun my-elfeed-capture-entry ()
+  "把当前 Elfeed 条目收藏到 ~/org/feeds.org。"
+  (interactive)
+  (cond
+   ((derived-mode-p 'elfeed-show-mode)
+    (org-store-link nil)
+    (org-capture nil "R"))
+   ((derived-mode-p 'elfeed-search-mode)
+    (let ((entries (ignore-errors (elfeed-search-selected :ignore-region))))
+      (cond
+       ((= 1 (length entries))
+        (elfeed-show-entry (car entries))
+        (org-store-link nil)
+        (org-capture nil "R"))
+       ((> (length entries) 1)
+        (user-error "这个命令一次只收藏一条; 请把光标停在单条上再按 C"))
+       (t (user-error "当前没有选中条目")))))
+   (t (call-interactively #'org-capture))))
+
+(with-eval-after-load 'elfeed
+  (define-key elfeed-search-mode-map (kbd "C") #'my-elfeed-capture-entry)
+  (define-key elfeed-show-mode-map (kbd "C") #'my-elfeed-capture-entry))
+
+;; ---------- 会话状态 / 文件一致性 ----------
+;; save-place: 重开文件回到上次光标位置 (Emacs 默认关闭, 实测本机为 nil)
+(when (fboundp 'save-place-mode)
+  (save-place-mode 1))
+(defvar auto-revert-interval)
+;; global-auto-revert: 外部改动的文件自动重载 — magit 切分支、mbsync 同步
+;; Maildir 后, Emacs 里的旧内容自动更新, 不用手动 revert-buffer。
+;; dired 另有 dired-auto-revert-buffer (init-tools.el), 不受本项影响。
+(when (fboundp 'global-auto-revert-mode)
+  (global-auto-revert-mode 1))
+(setq auto-revert-interval 5)              ; 轮询间隔 5s (默认亦为 5, 写死防变)
+;; repeat-mode: 同类命令连按省掉前缀 — 内置 repeat-map 已覆盖 M-g n/p
+;; (逐个错误) / C-x Left-Right (切 buffer) / C-x ^ { } (连续调窗口大小) 等。
+;; (本机 C-x o 改 ace-window、C-x u 改 vundo 均无 repeat-map, 属例外)
+(when (fboundp 'repeat-mode)
+  (repeat-mode 1))
+
+;; ---------- jinx: 实时拼写检查 (只查英文, 中文自动跳过) ----------
+;; 载体是 enchant-2 引擎 (nix profile install nixpkgs#enchant, 见 README 安装节)。
+;; jinx 异步检查: 编辑时后台跑 enchant, 只给疑似错词加波浪下划线, 不卡输入;
+;; AppleSpell 词典无中文 → 中文不判错, 中英混排写作几乎无噪音。
+;; 用法: 有下划线的词 M-x jinx-correct; M-x jinx-mode 手动开关。
+;; ⚠️ 只挂文本类 buffer (text/org/markdown), 不进 prog-mode — 代码里变量名/
+;;    缩写会被整片标红, 那是噪音不是错。
+(defvar jinx-languages)
+(defvar jinx-mode)
+(defvar jinx--compile-flags)
+(use-package jinx
+  :ensure t
+  :hook ((text-mode org-mode markdown-mode) . jinx-mode)
+  :custom
+  (jinx-languages "en_US")                 ; 引擎实际可用 en_US/en_GB 等 AppleSpell 词典
+  :config
+  ;; jinx 首次启用时现场编译 C 模块 (jinx-mod.c)。默认靠 pkg-config 定位
+  ;; enchant, 失败则退回 /usr/include/enchant-2 等硬编码路径。本机 enchant
+  ;; 在 nix (~/.nix-profile, nix profile install nixpkgs#enchant), 且未装
+  ;; pkg-config → 两条路都落空。显式补 nix 的 include/lib, 编译器直接命中
+  ;; (pkg-config 兜底路径 /usr/... 是空的, 留着无副作用, 见 README 安装节)。
+  (setq jinx--compile-flags
+        (append jinx--compile-flags
+                (list (concat "-I" (expand-file-name "~/.nix-profile/include/enchant-2"))
+                      (concat "-L" (expand-file-name "~/.nix-profile/lib"))))))
 
 ;; ---------- 杂项: 删除进废纸篓 / 像素滚动 / recentf 调优 ----------
 (defvar recentf-max-saved-items)
