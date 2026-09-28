@@ -19,6 +19,9 @@
 (defvar org-clock-out-remove-zero-time-clocks nil)
 (defvar org-clock-persist nil)
 (defvar org-agenda-custom-commands nil)   ; org-agenda lazy-load 前需声明 (定义在 org-agenda.el)
+(defvar org-stuck-projects nil)           ; 同上 (定义在 org-agenda.el)
+(declare-function appt-activate "appt" (&optional arg))
+(declare-function org-agenda-to-appt "org-agenda" (&optional refresh filter &rest args))
 (defvar org-directory "~/org")            ; 2026-09-23: 下面"确保 ~/org 存在"的顶层
                                           ;   file-exists-p 会读它, 而 :custom 里的
                                           ;   org-directory 要等 org 加载才生效
@@ -28,12 +31,16 @@
                            "~/org/projects.org"
                            "~/org/areas.org"
                            "~/org/habits.org"
-                           "~/org/gcal-holidays.org")
+                           "~/org/someday.org"        ; 2026-09-28 补: SOMEDAY 是关闭态
+                           "~/org/gcal-holidays.org") ;   不进 TODO 池, 只有周回顾
+                                                      ;   (C-c a R) 才需要它的入口
   "Agenda 文件清单。
 2026-09-26: 从下面的 `:custom' 提到这里 — org 是 `:defer t' 懒加载的,
 `:custom' 要等 org 本体加载才生效, 而 Dashboard 的 agenda 子进程 (ide.el)
 在启动时 (org 还没加载) 就要读这个变量, 否则抛 void-variable 且卡片永远
-停在 \"Loading calendar…\"。defvar 的值 org 的 defcustom 不会覆盖。")
+停在 \"Loading calendar…\"。defvar 的值 org 的 defcustom 不会覆盖。
+2026-09-28: 补 someday.org — 它原先在 agenda 文件之外, 后果是所有 agenda
+视图都看不到 SOMEDAY 条目, 周回顾里没有入口去翻\"将来也许\"清单。")
 (declare-function org-gcal-reload-client-id-secret "org-gcal.el" ())
 
 ;; ---------- org: 核心 ----------
@@ -188,8 +195,24 @@
         appt-display-interval 5)
   ;; 用自定义的 macOS 通知函数替代默认弹窗
   (setq appt-disp-window-function #'my-org-appt-notify)
-  ;; 打开 agenda 时把带时刻的 org 条目导入 appt 队列
+  ;; 把带时刻的 org 条目导入 appt 队列。
+  ;; 2026-09-28 修: 原实现只在 org-agenda-finalize-hook 里调, 而
+  ;; org-agenda-to-appt 只收集"今天"的带时刻条目 (实测: 放一条明天的 15:00
+  ;; deadline → "No event to add", 队列 0 条; 换成今天 → "Added 2 events")。
+  ;; 后果: 只有"当天恰好开过 agenda"的提醒才会响, 挂机几天全静默。
+  ;; 现在两条路并举:
+  ;;   a. 保留 finalize-hook (开 agenda 时顺手刷新, 无副作用)
+  ;;   b. 加一个每 30 分钟的全量重扫 (refresh=t 清空重建), 覆盖不开 agenda 的日子
+  ;; 注: appt 只能在“条目当天”提前 warn; 想让明天的 deadline 今天就提醒,
+  ;;     得把 org-deadline-warning-days 传给 org-agenda-to-appt, 那是另一回事。
   (add-hook 'org-agenda-finalize-hook #'org-agenda-to-appt)
+  (run-with-timer 30 (* 30 60)
+                  (lambda () (interactive)
+                    ;; 仅当 org 已加载才刷新: 避免为了提醒把 org 拽起来破坏懒加载。
+                    ;; org 只要开过任意 .org 文件或按过 C-c c 就在了, 所以覆盖得到
+                    ;; "开机挂机但没开 agenda" 的场景; 首轮刷新会顺带加载 org-agenda。
+                    (when (featurep 'org)
+                      (ignore-errors (org-agenda-to-appt t)))))
   ;; 激活 appt 计时器
   (appt-activate 1))
 
@@ -497,12 +520,19 @@
 ;; 提示输入文件名 (相对路径按 org-directory 展开, 文件不存在会自动创建)。
 (setq org-capture-templates
       '(("t" "任务 (TODO)" entry (file "~/org/inbox.org")
-         "* TODO %?\n  :PROPERTIES:\n  - Created: %U\n  :END:\n")
+         ;; 2026-09-28 修: 属性抽屉里必须写 ":CREATED: 值", 不能写 "- Created: 值"。
+         ;; 后者是无效属性行, org 会把它当普通正文 — 实测 org-entry-get "CREATED"
+         ;; 返回 nil, 于是所有按创建时间排序/老化的视图永远拿不到数据。
+         ;; (inbox.org 里已有两条是这么写坏的, 见该文件。)
+         "* TODO %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n")
         ("n" "笔记" entry (file "~/org/CAPTURE-notes.org")
          "* %?\n  %U\n")
         ("l" "链接 (带来源)" entry (file "~/org/links.org")
          "* %?\n  %U\n  Source: %a\n  %i\n")
-        ("j" "日记" entry (file+datetree "~/org/journal.org")
+        ;; 2026-09-28: file+datetree 在新版 org 里已废弃, 每次 capture 会打印
+        ;; "Deprecated date/weektree capture templates changed to
+        ;; 'file+olp+datetree'."; 换成新名字, 落点结构完全一样 (实测)。
+        ("j" "日记" entry (file+olp+datetree "~/org/journal.org")
          "* %?\n  %U\n")
         ("N" "主题笔记 (新建文件)" plain
          (file (lambda ()
@@ -616,16 +646,62 @@
 
 ;; ---------- 自定义 agenda 视图 ----------
 ;; C-c a n = 人生管理主视图: 本周日程 (含习惯图) + 所有未完成任务
+;; C-c a R = 周回顾: 一次拉齐 GTD 周回顾要翻的全部清单 (见下)
 ;; 其他内置视图: C-c a a (完整 agenda) / C-c a t (所有 TODO)
+;;
+;; 2026-09-28 变更 (GTD 补全):
+;;   1. `todo "NEXT|TODO|DOING|HOLD"` → `tags-todo "-habit/NEXT|TODO|DOING|HOLD"`。
+;;      原写法把 habits.org 的重复习惯也塞进"未完成任务", 每天刷屏;
+;;      `tags-todo` 的 match 语法是 "排除标签/待办关键字", "-habit" 正好滤掉习惯。
+;;      (注: `todo` 块的额外选项里放 `org-agenda-tag-filter-preset` 无效 — 实测
+;;       过滤器根本没应用; tags-todo 是文档规定的正路。)
+;;   2. 补 C-c a R 周回顾 + C-c a i 收件箱清零两个视图。
+;;      周回顾对应 journal.org 里那张手工 checklist, 现在一条命令拉全:
+;;        ① 本周日程 → ② 行动池 → ③ 等待 → ④ 僵死项目 → ⑤ 全部项目 → ⑥ 将来也许
+;;      ④ 僵死项目需要 org-stuck-projects (见下方), 否则 stuck 块直接报错。
 (setq org-agenda-custom-commands
       '(("n" "本周 + 待办"
          ((agenda "" ((org-agenda-span 7)
                       (org-agenda-overriding-header "本周日程")))
-          (todo "NEXT|TODO|DOING|HOLD"
-                ((org-agenda-overriding-header "未完成任务")))))
+          (tags-todo "-habit/NEXT|TODO|DOING|HOLD"
+                     ((org-agenda-overriding-header "未完成任务 (不含习惯)")))))
         ("w" "等待中"
          ((todo "WAIT"
-                ((org-agenda-overriding-header "等待别人回复 (WAIT)")))))))
+                ((org-agenda-overriding-header "等待别人回复 (WAIT)")))))
+        ("R" "周回顾 (Weekly Review)"
+         ((agenda "" ((org-agenda-span 7)
+                      (org-agenda-overriding-header "① 本周日程")))
+          (tags-todo "-habit/NEXT|TODO|DOING|HOLD"
+                     ((org-agenda-overriding-header "② 行动池 (下一步行动)")))
+          (todo "WAIT"
+                ((org-agenda-overriding-header "③ 等待中: 有结果了吗? 要催吗?")))
+          (stuck ""
+                 ((org-agenda-overriding-header "④ 僵死项目: 没有任何下一步行动")))
+          (tags "+project+LEVEL=1"
+                ((org-agenda-overriding-header "⑤ 全部项目 (每个都还有下一步吗?)")))
+          (todo "SOMEDAY"
+                ((org-agenda-overriding-header "⑥ 将来也许: 升级/删除/留着")))))
+        ("i" "收件箱清零"
+         ((todo nil ((org-agenda-files '("~/org/inbox.org"))
+                     (org-agenda-overriding-header
+                      "① inbox.org: 每条 C-c C-w 归位或删除, 目标清零")))))))
+
+;; ---------- org-stuck-projects: 僵死项目判据 ----------
+;; C-c a R 的 ④ 依赖它; 不配则 stuck 块报
+;; "Missing information to identify unstuck projects"。
+;; 默认值 ("+LEVEL=2/-DONE" ...) 对本库是错的: 它把 projects.org 的 2 级描述行
+;; (如 "目标: 上海, ...") 当项目, 实测匹配到的是那行, 不是项目本身。
+;;
+;; 判据四段: ① 匹配器 ② 子树上出现哪些 TODO 关键字算"不僵死" ③ 标签 ④ 反选正则。
+;;   ① "+project+LEVEL=1"   = 带 :project: 标签的一级标题 (本库项目就是这种)
+;;   ② ("*")               = 子树里有任何非关闭状态的 TODO 关键字就不僵死。
+;;                            org 会把 "*" 展开成所有 not-done 关键字
+;;                            (实测 = NEXT/TODO/DOING/WAIT/HOLD, 不含 SOMEDAY)。
+;;   ④ ""                  = 不用反选正则。
+;; 注: projects.org 的"说明"已改成 #+begin_comment 块 (2026-09-28), 不再是一个
+;;     带 :project: 的一级标题, 所以这里不必再排除它。若哪天又把它改回标题,
+;;     记得给 ④ 写上 "^\\*+ 说明"。
+(setq org-stuck-projects '("+project+LEVEL=1" ("*") nil ""))
 
 ;; ---------- org-habit: 习惯追踪 ----------
 ;; 习惯条目: TODO + SCHEDULED: <日期 .+1d> (每天) / .+1w (每周)
