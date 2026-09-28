@@ -644,6 +644,18 @@
       org-refile-use-outline-path 'file
       org-outline-path-complete-in-steps nil)
 
+;; ---------- org-archive: 完成的项目/任务归档到哪 ----------
+;; 2026-09-28 补: projects.org 的说明里一直写着"整个子树 C-c C-x C-a 归档到
+;; archive.org", 但本文件从没设过 org-archive-location —— 于是实际走的是 org
+;; 默认值 "%s_archive::", 即归档进 `projects.org_archive`。文档和真实行为对不上,
+;; 按文档意图补齐, 统一进 ~/org/archive.org 的日期树 (datetree), 按年月归档好翻。
+;;
+;; 注: 这是全局设置, agenda 里的 dA 也走这里。想改回"每文件各存一份", 把那行注掉
+;; (或设回 "%s_archive::") 即可。archive.org 不在 org-agenda-files 里,
+;; 归档进去的东西不会污染任何 agenda 视图 (和其它 gcal*.org 一样)。
+(setq org-archive-location (concat (expand-file-name "archive.org" org-directory)
+                                   "::datetree/"))
+
 ;; ---------- 自定义 agenda 视图 ----------
 ;; C-c a n = 人生管理主视图: 本周日程 (含习惯图) + 所有未完成任务
 ;; C-c a R = 周回顾: 一次拉齐 GTD 周回顾要翻的全部清单 (见下)
@@ -722,7 +734,7 @@
 ;; 跨文件跳标题链接: [[file:路径::*标题][显示名]]
 (defcustom my-org-index-exclude-files
   '("index.org" "inbox.org" "projects.org" "areas.org" "habits.org"
-    "someday.org" "gcal.org" "gcal-holidays.org")
+    "someday.org" "gcal.org" "gcal-holidays.org" "archive.org")
   "不进笔记索引的文件名 (任务类/日历类 + index 自身)。除此外 ~/org/ 下所有 .org 自动索引。"
   :type '(repeat string)
   :group 'org)
