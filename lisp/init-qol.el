@@ -129,7 +129,11 @@
 ;; 这样从阅读页就能把"当前这条"抓进 ~/org (取到 :title / :external-link 等元数据)。
 (use-package elfeed-link
   :after elfeed
-  :demand t)   ; elfeed-link.el 随 elfeed 包提供, 非独立包: 不能 :ensure (会去找不存在的 "elfeed-link")
+  :demand t
+  ;; ⚠️ 必须 :ensure nil: ide.el 设了全局 use-package-always-ensure t, 不显式关掉
+  ;; 仍会去装 "elfeed-link"; 而它是 elfeed 包自带的 .el, 不是独立包 → 报
+  ;; "Package 'elfeed-link' is unavailable"。
+  :ensure nil)
 
 ;; ---------- elfeed 收藏到 org: C 键 ----------
 ;; 搜索页/阅读页按 C → org-capture 模板 "R" → 追加进 ~/org/feeds.org 的"收藏"标题。
