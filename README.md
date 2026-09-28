@@ -101,7 +101,7 @@
 - apheleia：保存时自动格式化（nix 除外，该语言已由 eglot→nixd→nixfmt 负责）
 - vterm-toggle：`C-c T` 从底部弹出/收起终端（与 `C-c v` / `C-c V` 并存）
 - ace-window `C-x o` 选窗口、avy `M-g c/w/l` 字符跳转
-- elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）；搜索页/阅读页按 `C` 把当前条目收藏到 `~/org/feeds.org`（org-capture 模板 `R`）
+- elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）；搜索页/阅读页按 `C` 把当前条目收藏到 `~/org/feeds.org`（org-capture 模板 `R`，落点标题「收藏」）。该文件带 `#+FILETAGS: :feeds:`，`C-c a f` 可列出全部收藏（feeds.org 不在 agenda 文件里，故仿 `C-c a i` 单扫此文件）
 
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）

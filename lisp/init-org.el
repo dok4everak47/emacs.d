@@ -700,8 +700,16 @@
                 ((org-agenda-overriding-header "⑥ 将来也许: 升级/删除/留着")))))
         ("i" "收件箱清零"
          ((todo nil ((org-agenda-files '("~/org/inbox.org"))
-                     (org-agenda-overriding-header
-                      "① inbox.org: 每条 C-c C-w 归位或删除, 目标清零")))))))
+                    (org-agenda-overriding-header
+                      "① inbox.org: 每条 C-c C-w 归位或删除, 目标清零")))))
+        ;; C-c a f: 列 ~/org/feeds.org 的收藏 (Elfeed 按 C 存的条目)。
+        ;; feeds.org 不在 org-agenda-files (是收藏存档, 不是任务文件), 所以
+        ;; 全局标签搜索 C-c a m 扫不到它 — 这里仿 C-c a i 用局部 org-agenda-files
+        ;; 只扫该文件。条目带 #+FILETAGS: :feeds:, 故按标签 feeds 过滤。
+        ("f" "Feeds 收藏 (RSS)"
+         tags "feeds"
+         ((org-agenda-files '("~/org/feeds.org"))
+          (org-agenda-overriding-header "Feeds 收藏 (标签 feeds)")))))
 
 ;; ---------- org-stuck-projects: 僵死项目判据 ----------
 ;; C-c a R 的 ④ 依赖它; 不配则 stuck 块报
