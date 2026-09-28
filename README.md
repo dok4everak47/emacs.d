@@ -90,6 +90,14 @@
 - TRAMP 远程文件/目录 + vterm SSH；清单在私有文件 `servers.el`（不入库）
 - `M-x my-server-dired` / `my-server-vterm` / `my-server-browse-files`，或直接 `C-x C-f /ssh:别名:/路径`
 
+**生活质感补丁 (lisp/init-qol.el)**
+- no-littering：backup / auto-save 集中到 `~/.cache/emacs`，不再污染项目目录
+- undo-fu-session：撤销历史跨重启（不动键位，meow 的 u / vundo 照旧）
+- apheleia：保存时自动格式化（nix 除外，该语言已由 eglot→nixd→nixfmt 负责）
+- vterm-toggle：`C-c T` 从底部弹出/收起终端（与 `C-c v` / `C-c V` 并存）
+- ace-window `C-x o` 选窗口、avy `M-g c/w/l` 字符跳转
+- elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -127,6 +135,7 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `lisp/init-meow.el` | 模态编辑：meow + surround + 自定义 state（emacs / org-agenda） |
 | `lisp/init-org.el` | Org Mode：笔记/任务/文学编程/capture/agenda |
 | `lisp/init-lazycat.el` | 快捷工具：super-save / vundo / symbol-overlay / popper / olivetti / markdown 预览 |
+| `lisp/init-qol.el` | 生活质感补丁：no-littering / undo-fu-session / apheleia / vterm-toggle / ace-window / avy / elfeed |
 
 ## 注意
 
