@@ -34,6 +34,7 @@
 - marginalia：minibuffer 条目右侧注解（文件大小、函数描述等）
 - embark：`C-.` / `M-o` 光标处上下文操作（类似 VSCode 右键菜单）
 - corfu + cape：代码补全弹窗（自动触发、模糊匹配、Enter 确认候选；Tab 不接受候选 —— snippet 占位符内跳字段，其余情况交给 yas 展开 / mode 缩进）
+- wgrep：搜索结果可直接编辑并批量写回（`M-s g` 搜出后 `C-c C-p` 进 wgrep 编辑、`C-c C-c` 一次写回所有文件、`C-c C-k` 放弃）
 
 **开发工具 (lisp/init-tools.el)**
 - which-key：按下前缀键后弹出可用按键列表，不用背快捷键
@@ -43,6 +44,7 @@
 - windmove：`⌘ + 方向键` 切窗口、`⌘⇧ + 方向键` 调窗口大小、`C-c w` 列出所有窗口来选
 
 **环境集成 (lisp/init-env.el)**
+- url-proxy-services：内置 url.el 走本地代理 127.0.0.1:7890（org-gcal 抓日历 / elfeed 拉 RSS / eww / 包管理；no_proxy 排除本地回环与飞书、火山、moonshot 等国内直连域名）
 - exec-path-from-shell：从 shell 继承 PATH（nix/homebrew 命令在 GUI Emacs 可用）
 - envrc：direnv 集成（.envrc 项目自动加载环境变量）
 - yasnippet + yasnippet-snippets：代码片段模板展开
@@ -91,12 +93,15 @@
 - `M-x my-server-dired` / `my-server-vterm` / `my-server-browse-files`，或直接 `C-x C-f /ssh:别名:/路径`
 
 **生活质感补丁 (lisp/init-qol.el)**
+- save-place / global-auto-revert：重开文件回到上次光标位置；外部改动自动重载（magit 切分支、mbsync 同步后不用手动 revert）
+- repeat-mode：同类命令连按省前缀（`M-g n/p` 逐个错误、`C-x Left/Right` 切 buffer、`C-x ^ { }` 连续调窗口大小）
+- jinx：实时拼写检查（enchant 引擎，`text/org/markdown` 三类 buffer 自动开，只查英文、中文不判错；错词波浪线 + `M-x jinx-correct` 修正）
 - no-littering：backup / auto-save 集中到 `~/.cache/emacs`，不再污染项目目录
 - undo-fu-session：撤销历史跨重启（不动键位，meow 的 u / vundo 照旧）
 - apheleia：保存时自动格式化（nix 除外，该语言已由 eglot→nixd→nixfmt 负责）
 - vterm-toggle：`C-c T` 从底部弹出/收起终端（与 `C-c v` / `C-c V` 并存）
 - ace-window `C-x o` 选窗口、avy `M-g c/w/l` 字符跳转
-- elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）
+- elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）；搜索页/阅读页按 `C` 把当前条目收藏到 `~/org/feeds.org`（org-capture 模板 `R`）
 
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
@@ -114,7 +119,13 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 
 安装后执行 `M-x nerd-icons-install-fonts` 安装图标字体（一次性）。
 
-依赖环境：Emacs 30+、macOS、ClashX 代理（Gmail 发送隧道）、macOS 钥匙串凭据（smtp.gmail.com / smtp.126.com）、cmake（vterm 编译，`brew install cmake`）。
+拼写检查（jinx）需要 enchant 引擎与头文件：
+```bash
+nix profile install nixpkgs#enchant nixpkgs#enchant.dev
+```
+首次在文本类 buffer 启用时 jinx 会用 nix 路径自动编译 `jinx-mod.dylib`（`init-qol.el` 已配好 include/lib 路径），无需手动操作。
+
+依赖环境：Emacs 30+、macOS、ClashX 代理（Gmail 发送隧道）、macOS 钥匙串凭据（smtp.gmail.com / smtp.126.com）、cmake（vterm 编译，`brew install cmake`）、enchant + enchant.dev（jinx 拼写检查，`nix profile install nixpkgs#enchant nixpkgs#enchant.dev`）。
 
 ## 文件结构
 
@@ -123,9 +134,9 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `early-init.el` | 启动早期配置（关闭 native 编译避免刷屏） |
 | `init.el` | 主配置：邮件（发送 + Gnus 收件）+ 诊断 + 主装配（模块加载顺序在文件末尾） |
 | `ide.el` | VSCode 外观层 + Dashboard 导航页 + package.el 初始化 |
-| `lisp/init-completion.el` | 搜索与补全：vertico / consult / orderless / marginalia / embark / corfu |
+| `lisp/init-completion.el` | 搜索与补全：vertico / consult / orderless / marginalia / embark / corfu / wgrep |
 | `lisp/init-tools.el` | 开发工具：which-key / magit / diff-hl / diredfl / dired-subtree / windmove |
-| `lisp/init-env.el` | 环境集成：exec-path-from-shell / envrc / yasnippet / treesit-auto |
+| `lisp/init-env.el` | 环境集成：url-proxy-services 代理 / exec-path-from-shell / envrc / yasnippet / treesit-auto |
 | `lisp/init-nix.el` | Nix 语言：nix-mode + nixd（eglot）+ nixfmt |
 | `lisp/init-term.el` | 内嵌终端：vterm（C 实现高速终端） |
 | `lisp/init-server.el` | 远程服务器：TRAMP + vterm SSH（清单在 servers.el） |
@@ -135,7 +146,7 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 | `lisp/init-meow.el` | 模态编辑：meow + surround + 自定义 state（emacs / org-agenda） |
 | `lisp/init-org.el` | Org Mode：笔记/任务/文学编程/capture/agenda |
 | `lisp/init-lazycat.el` | 快捷工具：super-save / vundo / symbol-overlay / popper / olivetti / markdown 预览 |
-| `lisp/init-qol.el` | 生活质感补丁：no-littering / undo-fu-session / apheleia / vterm-toggle / ace-window / avy / elfeed |
+| `lisp/init-qol.el` | 生活质感补丁：save-place / auto-revert / repeat-mode / jinx / no-littering / undo-fu-session / apheleia / vterm-toggle / ace-window / avy / elfeed |
 
 ## 注意
 
