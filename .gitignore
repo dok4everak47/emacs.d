@@ -55,3 +55,6 @@ archive/
 
 # 运行时数据: 书签 (变动频繁, 每机不同)
 bookmarks
+
+# elfeed 订阅清单 (个人订阅, 各机不同)
+elfeed.org
