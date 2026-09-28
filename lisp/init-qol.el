@@ -144,15 +144,17 @@
     (org-store-link nil)
     (org-capture nil "R"))
    ((derived-mode-p 'elfeed-search-mode)
-    (let ((entries (ignore-errors (elfeed-search-selected :ignore-region))))
-      (cond
-       ((= 1 (length entries))
-        (elfeed-show-entry (car entries))
-        (org-store-link nil)
-        (org-capture nil "R"))
-       ((> (length entries) 1)
-        (user-error "这个命令一次只收藏一条; 请把光标停在单条上再按 C"))
-       (t (user-error "当前没有选中条目")))))
+    ;; ⚠️ 不要用 elfeed-search-selected: 其 :ignore-region 参数返回"单个 entry
+    ;; 结构体"(非列表), (length 结构体) 取槽位数永远 >1 → 老代码只报错不收藏;
+    ;; 无参又会把"标记过的多条"全算进来。直接取光标所在行的 entry 属性最明确,
+    ;; 无论有无标记/选区都只拿光标下这一条。
+    (let ((entry (get-text-property (line-beginning-position) 'elfeed-entry)))
+      (if entry
+          (progn
+            (elfeed-show-entry entry)
+            (org-store-link nil)
+            (org-capture nil "R"))
+        (user-error "光标不在某条 feed 上, 请把光标移到一条条目再按 C"))))
    (t (call-interactively #'org-capture))))
 
 (with-eval-after-load 'elfeed
