@@ -24,8 +24,8 @@
 - 列表/正文窗口固定布局、自适应不报错、启动不弹 auto-save 询问
 
 **IDE 外观 (ide.el)**
-- One Dark 主题、标签页 (tab-bar)、侧边栏文件树 (treemacs)、行号、状态栏
-- 内置 eglot (LSP)、菜单栏"IDE"菜单（GUI 操作）
+- One Dark 主题、标签页 (tab-bar)、侧边栏文件树 (dired-sidebar)、行号、状态栏
+- lsp-mode + lsp-ui（PHP/Python/JS/TS/Rust 自动启动；nix 走内置 eglot + nixd）、菜单栏"IDE"菜单（GUI 操作）
 - Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（邮件 / 文件树 / 退出 / agenda / capture …）+ 2x2 分区（上排 Recent Files · Projects，下排 Agenda · Bookmarks，窗口 <54 列自动退回单列）+ Nerd 图标 + 垂直居中；agenda 卡由子进程异步刷新，万一卡住可 `M-x my-dash-agenda-refresh` 手动重来
 
 **搜索与补全 (lisp/init-completion.el)**
@@ -39,6 +39,8 @@
 - which-key：按下前缀键后弹出可用按键列表，不用背快捷键
 - magit：`C-x g` 打开 Git 客户端（diff 按词高亮）
 - diff-hl：左侧 gutter 实时显示 git 变更标记（新增/修改/删除）
+- diredfl + dired-subtree：按文件类型着色、`i` 展开子树（macOS 的 BSD ls 不兼容 GNU 开关，改用 ls-lisp 绕开）
+- windmove：`⌘ + 方向键` 切窗口、`⌘⇧ + 方向键` 调窗口大小、`C-c w` 列出所有窗口来选
 
 **环境集成 (lisp/init-env.el)**
 - exec-path-from-shell：从 shell 继承 PATH（nix/homebrew 命令在 GUI Emacs 可用）
@@ -55,11 +57,12 @@
 - flymake：Emacs 29+ 内置实时语法检查（fringe + margin 标记，`M-g n`/`M-g p` 跳转，`C-c ! l` 错误列表）
 - impatient-mode + simple-httpd：HTML/CSS 实时预览（编辑即刷新，替代 VSCode Live Server，`localhost:8080`）
 
-**Vim 仿真 (lisp/init-evil.el)**
-- evil：Normal/Insert/Visual/Operator-pending 全模式，Esc 无延迟，C-u 半屏滚动
-- evil-collection：为 magit/dired/ediff 等数十个 major-mode 统一 evil 快捷键
-- evil-surround：环绕操作（`cs"'` 改引号、`ds"` 删引号、`yss"` 加引号）
-- evil-nerd-commenter：`gcc` 注释切换、`gc` + motion 批量注释
+**模态编辑 (lisp/init-meow.el)**
+- meow：Kakoune 式「先选中再操作」（2026-08 从 evil 迁来），`M-x meow-tutor` 15 分钟上手，`SPC ?` 随时翻键位表
+- 不接管 major-mode 键位：没被占用的键穿透到原生 keymap，所以各 mode 的原有快捷键直接可用
+- `SPC` 是 keypad 万能前缀（`SPC x f` = `C-x C-f`），未命中会透明转发到 `C-c`
+- 自定义 state：`emacs`（Gnus 等纯原生场景）、`org-agenda`（agenda 专用键位）
+- 环绕操作用 surround 包：`SPC s s` / `d` / `c`
 
 **Org Mode (lisp/init-org.el)**
 - org 核心设置：缩进对齐、隐藏前导星号、TODO 状态流转（TODO→DOING→HOLD→DONE/CANC）
@@ -70,7 +73,22 @@
 - 任务收集只有一个入口：`C-c c t` 落 `inbox.org`，整理时 `C-c C-w` 归位到 `projects.org`；`notes.org` 只放笔记不放任务（2026-09-28 清理了它与 inbox 的三条重复任务）
 - org-babel 文学编程：代码块可直接执行（Python / Shell / Emacs Lisp）
 - org-modern 现代外观：符号替代星号、TODO 关键字彩色背景
-- evil-org：evil 快捷键集成（h/l 升降级、Tab 折叠、agenda j/k 导航）
+- org 智能命令走 `SPC` 前缀（`SPC i/a/o/O/d/x` 表感知插入、列表延续、智能删除；`SPC [/]/{/}` element 与段落跳转），全部集中在 init-org.el
+- 归档落点统一进 `~/org/archive.org` 的日期树（`org-archive-location`），完成的项目 `C-c C-x C-a` 归档后不再出现在周回顾的「僵死项目」里
+
+**快捷工具 (lisp/init-lazycat.el)**
+- super-save 停手 1 秒自动保存、vundo 可视化撤销树（`C-x u`）、symbol-overlay 符号高亮与一键重命名（`C-c s` 前缀）
+- popper 临时弹窗管理（`C-c p p`）、olivetti 写作居中（`C-c o o`）、pangu-spacing 中英文自动加空格、move-text 整行上下移
+- markdown-mode：Emacs 内 live preview（`C-c C-c l`，eww 渲染，右侧并排）
+
+**Nix / 缩进 / 括号 (init-nix.el · init-simple-indent.el · init-paren.el)**
+- nix-mode + nixd（eglot）+ nixfmt 保存自动格式化；nix 刻意排除 treesit（缩进不如 SMIE 稳）
+- 所有 prog-mode 统一 TAB 缩进 2 空格、RET 继承当前行缩进（再按一次回车取消缩进）
+- rainbow-delimiters + highlight-parentheses（Lisp 系）+ show-paren（其他语言）；光标在空括号对中间按退格一次删整对
+
+**远程服务器 (lisp/init-server.el)**
+- TRAMP 远程文件/目录 + vterm SSH；清单在私有文件 `servers.el`（不入库）
+- `M-x my-server-dired` / `my-server-vterm` / `my-server-browse-files`，或直接 `C-x C-f /ssh:别名:/路径`
 
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
@@ -84,7 +102,7 @@
 git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 ```
 
-首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / treemacs / mood-line / dashboard / nerd-icons / vertico / consult / corfu / magit / impatient-mode 等）。
+首次启动会自动从清华 ELPA 镜像安装缺失的包（doom-themes / dired-sidebar / mood-line / dashboard / nerd-icons / vertico / consult / corfu / meow / magit / lsp-mode / impatient-mode 等）。
 
 安装后执行 `M-x nerd-icons-install-fonts` 安装图标字体（一次性）。
 
@@ -94,16 +112,21 @@ git clone https://github.com/dok4everak47/emacs.d.git ~/.emacs.d
 
 | 文件 | 作用 |
 |---|---|
-| `init.el` | 主配置：邮件 + Gnus + 导航 + 诊断 + 模块加载 |
 | `early-init.el` | 启动早期配置（关闭 native 编译避免刷屏） |
+| `init.el` | 主配置：邮件（发送 + Gnus 收件）+ 诊断 + 主装配（模块加载顺序在文件末尾） |
 | `ide.el` | VSCode 外观层 + Dashboard 导航页 + package.el 初始化 |
 | `lisp/init-completion.el` | 搜索与补全：vertico / consult / orderless / marginalia / embark / corfu |
-| `lisp/init-tools.el` | 开发工具：which-key / magit / diff-hl |
+| `lisp/init-tools.el` | 开发工具：which-key / magit / diff-hl / diredfl / dired-subtree / windmove |
 | `lisp/init-env.el` | 环境集成：exec-path-from-shell / envrc / yasnippet / treesit-auto |
+| `lisp/init-nix.el` | Nix 语言：nix-mode + nixd（eglot）+ nixfmt |
 | `lisp/init-term.el` | 内嵌终端：vterm（C 实现高速终端） |
+| `lisp/init-server.el` | 远程服务器：TRAMP + vterm SSH（清单在 servers.el） |
 | `lisp/init-dev.el` | 开发辅助：flymake 语法检查 / impatient-mode 实时预览 |
-| `lisp/init-evil.el` | Vim 仿真：evil / evil-collection / evil-surround / evil-nerd-commenter |
+| `lisp/init-simple-indent.el` | 统一缩进：TAB 2 空格 / RET 继承缩进 |
+| `lisp/init-paren.el` | 括号可视化：rainbow-delimiters / highlight-parentheses / show-paren |
+| `lisp/init-meow.el` | 模态编辑：meow + surround + 自定义 state（emacs / org-agenda） |
 | `lisp/init-org.el` | Org Mode：笔记/任务/文学编程/capture/agenda |
+| `lisp/init-lazycat.el` | 快捷工具：super-save / vundo / symbol-overlay / popper / olivetti / markdown 预览 |
 
 ## 注意
 
