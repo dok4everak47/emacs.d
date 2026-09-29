@@ -718,6 +718,7 @@
 (require 'init-org nil t)
 (require 'init-lazycat nil t)
 (require 'init-qol nil t)     ; 生活质感补丁 (目录整洁/撤销持久化/格式化/弹出终端/RSS)
+(require 'init-agent nil t)   ; AI agent (agent-shell, C-c A 起 Hermes ACP)
 
 ;; ================= 126 IMAP: 登录后发 ID 命令 (网易风控) =================
 ;; 症状: Gnus 进 nnimap+126 报 "NO SELECT Unsafe Login. Please contact kefu@188.com"

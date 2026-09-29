@@ -369,6 +369,8 @@ ARG 为前缀参数 (meow-to-block 需要 arg, 故此处必须透传)."
 ;; emacs: 无 meow 绑定 / insert: 直接输入
 (dolist (entry '((dired-mode . motion)
                  (vterm-mode . insert)
+                 (agent-shell-mode . insert)      ; AI agent 会话 (Hermes): 直接打字输入 prompt
+                 (agent-shell-diff-mode . emacs)  ; agent 的 diff 审阅: 保留原生键 (a/r 应用/拒绝)
                  (magit-status-mode . motion)
                  (magit-log-mode . motion)
                  (magit-diff-mode . motion)

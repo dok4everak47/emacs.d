@@ -103,6 +103,13 @@
 - ace-window `C-x o` 选窗口、avy `M-g c/w/l` 字符跳转
 - elfeed：`C-c j` RSS 阅读，订阅清单 `elfeed.org`（已 gitignore）；搜索页/阅读页按 `C` 把当前条目收藏到 `~/org/feeds.org`（org-capture 模板 `R`，落点标题「收藏」）。该文件带 `#+FILETAGS: :feeds:`，`C-c a f` 可列出全部收藏（feeds.org 不在 agenda 文件里，故仿 `C-c a i` 单扫此文件）
 
+**AI Agent (lisp/init-agent.el)**
+- agent-shell：原生 Emacs buffer 里跑 ACP (Agent Client Protocol) agent，对话流 / 工具活动 / 文件 diff / 审批弹窗都在 buffer 里
+- Hermes 内置支持（`hermes acp`，共用 `~/.hermes` 的 provider/model/memory/skills）：`C-c A` 起新会话；选其他 agent 或恢复历史会话用 `M-x agent-shell`
+- 依赖：agent-shell 要求 shell-maker ≥ 0.97.5（清华 MELPA 镜像可能滞后一天，启动报版本不足就从 melpa.org 升级它）
+- meow state：`agent-shell-mode` = insert（打开即可打字），`agent-shell-diff-mode` = emacs（保留 a/r 原生键）
+- 会话记录写在 `<项目>/.agent-shell/`（已 gitignore）；ACP 无消息投递 / cron / `/goal`，要这些用 `C-c v` 开 vterm 跑 `hermes`
+
 **其他**
 - 终端里 Option 键 = Meta（Terminal.app / iTerm2 均已配置）
 - 邮件导航菜单：菜单栏点"返回所有邮箱"，不用记快捷键
@@ -147,6 +154,7 @@ nix profile install nixpkgs#enchant nixpkgs#enchant.dev
 | `lisp/init-org.el` | Org Mode：笔记/任务/文学编程/capture/agenda |
 | `lisp/init-lazycat.el` | 快捷工具：super-save / vundo / symbol-overlay / popper / olivetti / markdown 预览 |
 | `lisp/init-qol.el` | 生活质感补丁：save-place / auto-revert / repeat-mode / jinx / no-littering / undo-fu-session / apheleia / vterm-toggle / ace-window / avy / elfeed |
+| `lisp/init-agent.el` | AI agent：agent-shell（ACP）+ Hermes（`C-c A`） |
 
 ## 注意
 
