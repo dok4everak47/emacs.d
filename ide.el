@@ -50,12 +50,35 @@
 ;; ---------- 标签页 (浏览器式: 每个 buffer 一个 tab, 点击切换) ----------
 ;; tab-bar-buffers: 把 tab-bar 的 tab 内容来源改成 buffer (每打开 buffer 一 tab,
 ;; 点 tab 切 buffer, 关 buffer 关 tab), 比 Emacs 默认的 tab (窗口布局快照) 直观。
+;;
+;; ---------- Cmd+数字 按编号跳 tab (= 跳 buffer, 2026-09-29) ----------
+;; tab-bar-select-tab-modifiers = '(super): tab-bar 把 Cmd+1..8 绑到 tab-bar-select-tab
+;; (跳第 N 个 tab), Cmd+9 = 最后一个 tab, Cmd+0 = 最近用过的 buffer (tab-recent)。
+;; 本配置里 tab = buffer 且顺序 = buffer-list 顺序 (见下方 advice), 所以编号与肉眼
+;; 看到的 tab 栏一致; tab-bar-buffers 把 tab-bar-select-tab 改造为按编号切 buffer。
+;; ⚠️ 必须在 (tab-bar-mode 1) 之前 setq: 键位是 tab-bar-mode 启用那一刻由
+;;    tab-bar--define-keys 读这个变量建的 (之后改要用 customize-set-variable)。
+(setq tab-bar-select-tab-modifiers '(super))
+
+;; ⚠️ 数字键位不走 tab-bar-mode--tab-key-bind 的 ":filter 不覆盖已有全局绑定" 保护,
+;; 会连带盖掉 Cmd+0 = text-scale-adjust (重置字号) 这个 macOS 默认键 →
+;; 每次启用 tab-bar-mode 后把 s-0 从 tab-bar-mode-map 摘掉, Cmd+0 继续走全局。
+(defun my-tab-bar-free-super-0 ()
+  "把 s-0 从 tab-bar-mode-map 移除, 保留 Cmd+0 = 重置字号 (text-scale-adjust)。"
+  (define-key tab-bar-mode-map (kbd "s-0") nil))
+(add-hook 'tab-bar-mode-hook #'my-tab-bar-free-super-0)
+
 ;; ⚠️ tab-bar-buffers-mode 不会自动开 tab-bar-mode — 必须两个都开, 否则那一栏不显示。
 (tab-bar-mode 1)
 (tab-bar-buffers-mode 1)
 
-;; ⚠️ tab-bar-buffers 默认按 buffer 名字母序排 tab → C-x 方向键跳转无规律。
-;; 改成 buffer-list 顺序 (= 打开顺序, 最近激活的排最前), 切 tab 可预期。
+;; ⚠️ tab-bar-buffers 默认按 buffer 名字母序排 tab → C-TAB / C-x t o 前后切无规律。
+;; 改成 --interesting-buffers 的返回顺序, 去掉字母序, 切 tab 可预期。
+;; ⚠️ 实测顺序 = buffer-list 的**逆序**: 最久没用过的排最左 (tab#1), 刚用过的排最右
+;;   (tab-bar-buffers--interesting-buffers 用 push 遍历 buffer-list 所以是反的,
+;;    2026-09-29 实测; 效果 = 当前 buffer 总在最右 tab)。Cmd+数字 编号跟这个顺序一致。
+;; (注: C-x ← / C-x → 是内置 previous-buffer / next-buffer, 切的是 buffer 不是 tab,
+;;  不受这里的顺序影响; 真正的 tab 前后切 = C-TAB / C-x t o / C-x t O。)
 (advice-add 'tab-bar-buffers--interesting-buffers--sort
             :override
             (lambda () (tab-bar-buffers--interesting-buffers)))
