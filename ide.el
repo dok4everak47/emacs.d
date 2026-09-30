@@ -445,8 +445,11 @@
 ;; height = nil 表示继承默认字号; 字体没装 (如 nix rebuild 之前) 自动回退默认字体, 不报错。
 (defconst my-dash-nav-font "Terminus (TTF)" "导航按钮文字字体.")
 (defconst my-dash-nav-font-height 1.2 "导航按钮字号倍数 (nil = 继承默认字号).")
-(defconst my-dash-head-font "DotGothic16" "分区标题字体.")
-(defconst my-dash-head-font-height nil "分区标题字号倍数 (nil = 继承默认字号).")
+;; 分区标题与导航按钮统一用 Terminus(TTF)@1.2 (9px → 11px/字符, 与正文等宽;
+;; bold 实测同为 11px/字符 → 2x2 列对齐的 string-width 预算不再有偏差)。
+;; 想回点阵字: 第一行换 "DotGothic16" 且高度设 1.15。
+(defconst my-dash-head-font "Terminus (TTF)" "分区标题字体.")
+(defconst my-dash-head-font-height 1.2 "分区标题字号倍数 (nil = 继承默认字号).")
 
 (defvar my-dash--font-attrs-cache (make-hash-table :test 'equal)
   "缓存 (字体名 . 倍数) → face plist, 免得每次渲染都 find-font.")
