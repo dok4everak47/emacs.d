@@ -409,20 +409,33 @@
     ["切换项目" projectile-switch-project t]
     ["启动 LSP" lsp t]
     ["关闭 LSP" lsp-shutdown-workspace t]
-    ["运行 Rust 文件/项目 (C-c C-r)" my-rust-run t]))
+    ["运行 Rust 文件/项目 (C-c C-r)" my-rust-run t]
+    ;; E 组氛围 (2026-09-30): 屏保/打字机/主题, 全部手动触发, 不影响启动
+    ("Retro 氛围"
+     ["屏保 (zone 随机动画)" zone t]
+     ["Nyan 猫屏保" my-retro-zone-nyan t]
+     ["Nyan 位置条 (mode-line)" nyan-mode :style toggle :selected (bound-and-true-p nyan-mode)]
+     ["打字机专注 (writeroom)" writeroom-mode :style toggle :selected (bound-and-true-p writeroom-mode)]
+     ["专注写作 (olivetti)" olivetti-mode :style toggle :selected (bound-and-true-p olivetti-mode)]
+     ["ASCII 化当前 buffer (visual-ascii)" visual-ascii-mode :style toggle :selected (bound-and-true-p visual-ascii-mode)]
+     ["poet 浅色主题 (打字机)" my-retro-theme-poet t]
+     ["回到 doom-one 主题" my-retro-theme-doom t])))
 
-;; ---------- Dashboard 极简留白: 分区标题 + 纯列表, 无框线 (CJK 对齐问题从根上消失) ----------
-;; 调色: Lain 磷光绿系 (无框线版本, 颜色只做点缀)
-(defconst my-dash-c-title    "#5cff87" "主标题/磷光绿 (CRT P1 荧光).")
-(defconst my-dash-c-cardhead "#e6f2e8" "分区标题/窗白 (Lain UI 窗口文字).")
-(defconst my-dash-c-recent   "#7be8a0" "最近文件行/浅磷光绿.")
-(defconst my-dash-c-project  "#6fd0e8" "项目行/CRT 青.")
-(defconst my-dash-c-agenda   "#ffc46b" "日程行/琥珀 (amber 磷光).")
-(defconst my-dash-c-idle     "#4a5c4e" "占位文案/暗灰绿.")
-(defconst my-dash-c-bookmark "#b79bff" "书签行/电紫.")
-(defconst my-dash-c-button   "#5cff87" "导航按钮/磷光绿 (与主标题同色).")
-(defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
-(defconst my-dash-c-weather  "#7fd7c0" "天气行/CRT 淡青.")
+;; ---------- Dashboard 复古琥珀 (amber CRT): 分区标题 + 纯列表, 无框线 (CJK 对齐问题从根上消失) ----------
+;; 调色: 琥珀 CRT 单色系 (2026-09-30 换装: 原 Lain 磷光绿 → 琥珀; 改色只动本块)。
+;; 亮度梯度: 亮琥珀(主标题) → 奶油金(卡片题/按钮) → 中/浅琥珀(行) → 暗褐(占位/页脚)。
+(defconst my-dash-c-title    "#ffb000" "主标题/琥珀 CRT 主色 (P1 琥珀荧光).")
+(defconst my-dash-c-cardhead "#ffd9a0" "分区标题/奶油金 (琥珀高亮档).")
+(defconst my-dash-c-recent   "#e0a04e" "最近文件行/中琥珀.")
+(defconst my-dash-c-project  "#ffcf8f" "项目行/浅琥珀.")
+(defconst my-dash-c-agenda   "#ff9e64" "日程行/落日橙 (琥珀系暖色).")
+(defconst my-dash-c-idle     "#6b5636" "占位文案/暗褐 (低亮琥珀).")
+(defconst my-dash-c-bookmark "#f7b955" "书签行/金黄.")
+(defconst my-dash-c-button   "#ffc46b" "导航按钮/奶油琥珀.")
+(defconst my-dash-c-footer   "#a8792f" "页脚/暗琥珀.")
+(defconst my-dash-c-weather  "#ffcf9e" "天气行/淡琥珀.")
+;; ⚠️ 下面 use-package :custom-face 里的标题/footer 两处 hex 是字面量 (quoted spec 不求值
+;; 变量), 换色时需与本块手动同步。
 
 ;; ---------- 天气行可调参数 (改这里就够) ----------
 ;; 换城市: 改 city/lat/lon 三项。city 只是显示名, 真正的坐标是 lat/lon。
@@ -785,11 +798,23 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (my-dash--agenda-load-async))
 
 (defun my-dash--insert-block (lines)
-  "把 LINES (字符串列表) 作为整块按最宽行居中插入 (无框线, 误差不可见)."
+  "把 LINES (字符串列表) 作为整块按最宽行居中插入 (无框线, 误差不可见).
+GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵字 DotGothic16 拉丁
+9px/字符 vs 默认 SpaceMono 11px/字符), 按列居中会让整块偏左 (实测按钮行偏
+约 5 列)。整块用同一个 pad (以最宽行的像素宽为准), 各列内部对齐不受影响。
+拿不到窗口/GUI 时退回按列居中 (原行为)。"
   (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
          (ww (if win (window-width win) 80))
-         (w (apply #'max (mapcar #'string-width lines)))
-         (pad (make-string (max 0 (/ (- ww w) 2)) ?\s)))
+         (body-px (and win (display-graphic-p) (window-body-width win t)))
+         (cw (and body-px (frame-char-width)))
+         (pad (if (and body-px cw (> cw 0))
+                  (make-string
+                   (max 0 (round (/ (- body-px
+                                       (apply #'max (mapcar #'string-pixel-width lines)))
+                                    (* 2.0 cw))))
+                   ?\s)
+                (make-string (max 0 (/ (- ww (apply #'max (mapcar #'string-width lines))) 2))
+                             ?\s))))
     (dolist (l lines)
       (insert (if (equal l "") "\n" (concat pad l "\n"))))))
 
@@ -817,7 +842,9 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
      (propertize icon 'face (my-dash--merge-face iface fg)
                  'mouse-face hov 'keymap km 'help-echo help)
      " "
-     (propertize title 'face fg 'mouse-face 'highlight
+     ;; 按钮文字走点阵字 DotGothic16 (复古终端感); 图标不动 (保留 nerd-icons 字体 face)
+     (propertize title 'face (append fg '(:family "DotGothic16"))
+                 'mouse-face 'highlight
                  'keymap km 'help-echo help))))
 
 (defun my-dash--navigator-flow ()
@@ -882,8 +909,11 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec))
         (lines nil))
     (push (concat (my-dash--icon icon) "  "
+                  ;; 分区标题走点阵字 DotGothic16 (与导航按钮一致, 复古终端感);
+                  ;; 图标保留 nerd-icons 字体 face (不能整行 propertize)
                   (propertize label 'face (list :foreground my-dash-c-cardhead
-                                                :weight 'bold)))
+                                                :weight 'bold
+                                                :family "DotGothic16")))
           lines)
     (dolist (r rows)
       (let* ((fg `(:foreground ,(nth 3 r)))
@@ -1338,16 +1368,47 @@ FORCE 非 nil 时忽略\"本会话已取过\"的闩 (定时器/手动刷新用).
      dashboard-insert-newline
      dashboard-insert-footer))
   :custom-face
-  ;; 标题/footer 用 MonaspiceNe NFM (Monaspace Neon 等宽, 技术感, 与磷光绿 CRT 配色搭;
+  ;; 标题/footer 用 MonaspiceNe NFM (Monaspace Neon 等宽, 技术感); 色值=琥珀系,
+  ;; 与 my-dash-c-title / my-dash-c-footer 手动同步 (quoted spec 不能引用变量)。
   ;; 全局 fontset 只把 CJK 映射到 PingFang, 不映射拉丁字母, 故无需 fontset 兜底)。
-  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#5cff87" :family "MonaspiceNe NFM"))))
-  (dashboard-footer-face ((t (:foreground "#5f9f72" :slant italic :family "MonaspiceNe NFM")))))
+  (dashboard-banner-logo-title ((t (:height 2.0 :weight bold :foreground "#ffb000" :family "MonaspiceNe NFM"))))
+  (dashboard-footer-face ((t (:foreground "#a8792f" :slant italic :family "MonaspiceNe NFM")))))
 
 ;; 启动信息行英文化 (默认 "Emacs started in X seconds")
 (setq dashboard-init-info
       (lambda ()
         (format "Startup: %.2f s"
                 (float-time (time-subtract after-init-time before-init-time)))))
+
+;; ---------- Retro 氛围 (2026-09-30, E 组): 全部手动触发, 不挂 hook, 不影响启动 ----------
+;; 包只做 :defer 声明 (autoload 生效), 入口在菜单栏 "IDE → Retro 氛围"。
+(use-package nyan-mode :ensure t :defer t
+  :commands nyan-mode)
+(use-package zone-nyan :ensure t :defer t
+  :commands (zone-nyan zone-nyan-preview))
+(use-package writeroom-mode :ensure t :defer t
+  :commands (writeroom-mode global-writeroom-mode))
+(use-package visual-ascii-mode :ensure t :defer t
+  :commands (visual-ascii-mode global-visual-ascii-mode))
+;; poet 系列主题 (poet / poet-dark / poet-monochrome / poet-dark-monochrome)
+(use-package poet-theme :ensure t :defer t)
+
+(defun my-retro-zone-nyan ()
+  "Nyan 猫屏保: 把 zone 的动画换成 zone-nyan 再启动屏保 (直接 M-x zone 用默认动画)。"
+  (interactive)
+  (require 'zone-nyan)
+  (setq zone-programs [zone-nyan])
+  (zone))
+
+(defun my-retro-theme-poet ()
+  "切到 poet-dark 打字机主题 (仅氛围演示, 按需再切回 doom-one)。"
+  (interactive)
+  (load-theme 'poet-dark t))
+
+(defun my-retro-theme-doom ()
+  "切回默认的 doom-one 主题。"
+  (interactive)
+  (load-theme 'doom-one t))
 
 ;; 最近文件记录 (dashboard recents 依赖)
 (recentf-mode 1)
