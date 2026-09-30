@@ -437,6 +437,33 @@
 ;; ⚠️ 下面 use-package :custom-face 里的标题/footer 两处 hex 是字面量 (quoted spec 不求值
 ;; 变量), 换色时需与本块手动同步。
 
+;; ---------- 复古字体 (导航按钮 / 分区标题): 换字体只动这四行 ----------
+;; 字宽实测 (正文 SpaceMono = 11px/字符): Terminus 继承 9px → :height 1.2 = 11px;
+;; DotGothic16 继承 9px → 1.15 = 11px; CozetteVector 8px → 1.3 = 11px;
+;; scientifica 8px → 1.4 = 11px; VT323 7px → 1.5 = 11px。
+;; 把 :height 调到该字体刚好 11px/字符 = 与正文等宽, 按钮行间距最整齐。
+;; height = nil 表示继承默认字号; 字体没装 (如 nix rebuild 之前) 自动回退默认字体, 不报错。
+(defconst my-dash-nav-font "Terminus (TTF)" "导航按钮文字字体.")
+(defconst my-dash-nav-font-height 1.2 "导航按钮字号倍数 (nil = 继承默认字号).")
+(defconst my-dash-head-font "DotGothic16" "分区标题字体.")
+(defconst my-dash-head-font-height nil "分区标题字号倍数 (nil = 继承默认字号).")
+
+(defvar my-dash--font-attrs-cache (make-hash-table :test 'equal)
+  "缓存 (字体名 . 倍数) → face plist, 免得每次渲染都 find-font.")
+
+(defun my-dash--font-attrs (family height)
+  "FAMILY/HEIGHT → (:family … [:height …]); 字体不存在时返回 nil (回退默认字体)."
+  (when family
+    (let* ((key (cons family height))
+           (val (gethash key my-dash--font-attrs-cache 'miss)))
+      (if (not (eq val 'miss))
+          val
+        (puthash key
+                 (when (find-font (font-spec :family family))
+                   (append (list :family family)
+                           (when height (list :height height))))
+                 my-dash--font-attrs-cache)))))
+
 ;; ---------- 天气行可调参数 (改这里就够) ----------
 ;; 换城市: 改 city/lat/lon 三项。city 只是显示名, 真正的坐标是 lat/lon。
 ;; 查坐标: https://geocoding-api.open-meteo.com/v1/search?name=Yulin&count=5&language=en
@@ -831,19 +858,21 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
   (if base (list base extra) extra))
 
 (defun my-dash--navigator-btn (btn)
-  "渲染单个导航按钮: icon 保留 nerd-icons 字体 face + 磷光绿前景, 可点击."
+  "渲染单个导航按钮: 图标保留 nerd-icons 字体, 文字用 my-dash-nav-font (复古终端字), 可点击."
   (let* ((icon (car btn)) (title (cadr btn))
          (help (caddr btn)) (action (cadddr btn))
          (km (my-dash--click-map action))
-         (fg (list :foreground my-dash-c-button))
+         ;; 图标: 只上色不带字体 (否则 nerd 图标字形会丢)
+         (icol (list :foreground my-dash-c-button))
+         ;; 文字: 颜色 + my-dash-nav-font (字体没装时 my-dash--font-attrs 返回 nil → 默认字体)
+         (fg (append icol (my-dash--font-attrs my-dash-nav-font my-dash-nav-font-height)))
          (iface (get-text-property 0 'face icon))
          (hov (my-dash--merge-face iface 'highlight)))
     (concat
-     (propertize icon 'face (my-dash--merge-face iface fg)
+     (propertize icon 'face (my-dash--merge-face iface icol)
                  'mouse-face hov 'keymap km 'help-echo help)
      " "
-     ;; 按钮文字走点阵字 DotGothic16 (复古终端感); 图标不动 (保留 nerd-icons 字体 face)
-     (propertize title 'face (append fg '(:family "DotGothic16"))
+     (propertize title 'face fg
                  'mouse-face 'highlight
                  'keymap km 'help-echo help))))
 
@@ -909,11 +938,11 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
   (let ((icon (nth 0 sec)) (label (nth 1 sec)) (rows (nth 2 sec))
         (lines nil))
     (push (concat (my-dash--icon icon) "  "
-                  ;; 分区标题走点阵字 DotGothic16 (与导航按钮一致, 复古终端感);
-                  ;; 图标保留 nerd-icons 字体 face (不能整行 propertize)
-                  (propertize label 'face (list :foreground my-dash-c-cardhead
-                                                :weight 'bold
-                                                :family "DotGothic16")))
+                  ;; 分区标题字体/字号见 my-dash-head-font; 图标保留 nerd-icons face (不能整行 propertize)
+                  (propertize label 'face (append (list :foreground my-dash-c-cardhead
+                                                        :weight 'bold)
+                                                  (my-dash--font-attrs my-dash-head-font
+                                                                       my-dash-head-font-height))))
           lines)
     (dolist (r rows)
       (let* ((fg `(:foreground ,(nth 3 r)))
