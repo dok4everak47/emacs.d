@@ -471,7 +471,10 @@
 (defconst my-dash-weather-lat 22.6305 "纬度 (玉林市中心).")
 (defconst my-dash-weather-lon 110.1469 "经度 (玉林市中心).")
 (defconst my-dash-weather-tz "Asia/Shanghai" "API 返回时间所用时区 (影响\"更新 HH:MM\").")
-(defconst my-dash-weather-interval (* 30 60) "自动刷新间隔 (秒).")
+(defconst my-dash-weather-horizon 12 "小时条覆盖的未来时长 (小时).")
+(defconst my-dash-weather-step 2 "小时条每格间隔 (小时).")
+;; 15 分钟刷一次: 小时条要跟着整点走 ("现在"那格及时前移), 子进程取数很便宜。
+(defconst my-dash-weather-interval (* 15 60) "自动刷新间隔 (秒).")
 (defconst my-dash-weather-timeout 12 "curl 单次取数超时 (秒).")
 (defconst my-dash-weather-codes
   '((0 "晴" "nf-md-weather_sunny")
@@ -1036,15 +1039,18 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
            (cdr (apply #'append
                        (mapcar (lambda (c) (cons "" c)) cells)))))))))
 
-;; ---------- 天气行 (Open-Meteo, 免费无 key) ----------
-;; 数据源 api.open-meteo.com (当前实况 + 今日高低温/降水概率, WMO 码转中文)。
+;; ---------- 天气行: 小时条 (Open-Meteo, 免费无 key) ----------
+;; 数据源 api.open-meteo.com (current 实况 + hourly 逐小时预报, WMO 码转中文图标)。
+;; 显示 = 未来 my-dash-weather-horizon 小时的小时条, 每 my-dash-weather-step 小时
+;; 一格, 当前时段高亮; 取回来的数据存成"格子列表", 渲染时才按窗口宽裁剪 →
+;; 窗口缩放自适应 (见 `my-dash--weather-line')。
 ;; 取数走 curl 子进程 (-- 与 agenda 卡片同一套异步模式): 主进程零阻塞,
 ;; 结果写 cache/weather-cache.el → 下次启动秒显; 每会话自动刷一次 +
 ;; 每 my-dash-weather-interval 定时刷新一次。失败就保留上次数据, 不摆占位。
 ;; 子进程环境刻意去掉代理变量: open-meteo 本机可直连, 而代理(7890)没开时
 ;; curl 会连不上代理端口而失败。
-(defvar my-dash--weather-text nil
-  "格式化好的天气行; nil = 还没有数据 (整行不显示).")
+(defvar my-dash--weather-cells nil
+  "小时条格子列表 (第一格 =「现在」, 各自带 face); nil = 没数据 (整行不显示).")
 (defvar my-dash--weather-ts nil
   "上次成功取数的时间 (float-time), 写在缓存里备用.")
 (defvar my-dash--weather-loading nil
@@ -1071,25 +1077,25 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
 (defun my-dash--weather-cache-load ()
   "读缓存 (上次会话的数据), 让启动时立刻有天气; 已有数据不覆盖."
   (let ((f (my-dash--weather-cache-file)))
-    (when (and (null my-dash--weather-text) (file-exists-p f))
+    (when (and (null my-dash--weather-cells) (file-exists-p f))
       (condition-case nil
           (with-temp-buffer
             (insert-file-contents f)
             (let ((data (read (current-buffer))))
-              (when (and (consp data) (stringp (car data)))
-                (setq my-dash--weather-text (car data)
+              (when (and (consp data)
+                         (consp (car data))
+                         (stringp (car (car data))))
+                (setq my-dash--weather-cells (car data)
                       my-dash--weather-ts (cdr data)))))
         (error nil)))))
 
 (defun my-dash--weather-url ()
-  "Open-Meteo 请求 URL (当前实况 + 今日高低温/降水概率)."
+  "Open-Meteo 请求 URL: current 实况 + hourly 逐小时 (取 2 天, 够跨日)."
   (format (concat "https://api.open-meteo.com/v1/forecast"
                   "?latitude=%s&longitude=%s"
-                  "&current=temperature_2m,apparent_temperature,"
-                  "relative_humidity_2m,weather_code,wind_speed_10m"
-                  "&daily=temperature_2m_max,temperature_2m_min,"
-                  "precipitation_probability_max"
-                  "&timezone=%s&forecast_days=1")
+                  "&current=temperature_2m,weather_code"
+                  "&hourly=temperature_2m,weather_code"
+                  "&timezone=%s&forecast_days=2")
           my-dash-weather-lat my-dash-weather-lon my-dash-weather-tz))
 
 (defun my-dash--weather-env ()
@@ -1109,42 +1115,86 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
   (or (cdr (assq code my-dash-weather-codes))
       (list "--" "nf-md-weather_cloudy")))
 
-(defun my-dash--weather-format (json)
-  "JSON (alist, `json-parse-string' 结果) → 天气行字符串; 数据不全返回 nil."
+(defun my-dash--weather-temp (v)
+  "温度取整字符串; 非数字回退「--」."
+  (if (numberp v) (number-to-string (round v)) "--"))
+
+(defun my-dash--weather-cell (label code temp now)
+  "单个小时格: 标签 + 图标 + 温度. NOW 非 nil = 当前时段 (高亮)."
+  (let* ((info (my-dash--weather-desc code))
+         (icon (my-dash--icon (cadr info)))
+         (txt (format "%s %s°" label (my-dash--weather-temp temp)))
+         (fg (list :foreground (if now my-dash-c-title my-dash-c-weather))))
+    ;; ⚠️ 图标必须保留 nerd-icons 的字体 face (整串 propertize 会变豆腐),
+    ;; 所以图标单独合成 face, 标签/温度才整体上色 (见 my-dash--merge-face)。
+    (concat
+     (propertize icon 'face
+                 (my-dash--merge-face (get-text-property 0 'face icon) fg))
+     " "
+     (propertize txt
+                 'face (if now
+                           (list :foreground my-dash-c-title :weight 'bold)
+                         fg)
+                 'help-echo (format "%s %s" txt (car info))))))
+
+(defun my-dash--weather-cells-from-json (json)
+  "JSON → 格子列表: 「现在」 + 未来 horizon 小时里每 step 小时一格.
+关键数据缺失返回 nil (调用方保留上次数据)."
   (let* ((cur (alist-get 'current json))
-         (day (alist-get 'daily json))
-         (temp (alist-get 'temperature_2m cur))
-         (code (alist-get 'weather_code cur)))
-    (when (and cur (numberp temp) (numberp code))
-      (let* ((n (lambda (v) (if (numberp v) (number-to-string (round v)) "--")))
-             (feels (funcall n (alist-get 'apparent_temperature cur)))
-             (hum (funcall n (alist-get 'relative_humidity_2m cur)))
-             (wind (funcall n (alist-get 'wind_speed_10m cur)))
-             (lo (funcall n (car (alist-get 'temperature_2m_min day))))
-             (hi (funcall n (car (alist-get 'temperature_2m_max day))))
-             (pop (funcall n (car (alist-get 'precipitation_probability_max day))))
-             (info (my-dash--weather-desc code))
-             (icon (my-dash--icon (cadr info)))
-             (ts (alist-get 'time cur))
-             (fg (list :foreground my-dash-c-weather)))
-        ;; ⚠️ 整行 propertize 会覆盖图标的 nerd-icons 字体 face (变豆腐),
-        ;; 所以图标单独合成 face, 其余部分才整体上色 (见 my-dash--merge-face)。
-        (concat
-         (propertize icon 'face
-                     (my-dash--merge-face (get-text-property 0 'face icon) fg))
-         "  "
-         (propertize my-dash-weather-city
-                     'face (list :foreground my-dash-c-cardhead :weight 'bold))
-         (propertize
-          (concat "  " (car info) " " (funcall n temp) "°C"
-                  " · 体感 " feels "°"
-                  " · 湿度 " hum "%"
-                  " · 风 " wind " km/h"
-                  " · 今日 " lo "~" hi "°C"
-                  " · 降水 " pop "%"
-                  (when (and (stringp ts) (>= (length ts) 16))
-                    (concat " · " (substring ts 11 16))))
-          'face fg))))))
+         (hrly (alist-get 'hourly json))
+         (times (alist-get 'time hrly))
+         (temps (alist-get 'temperature_2m hrly))
+         (codes (alist-get 'weather_code hrly))
+         (ctime (alist-get 'time cur))
+         (ctemp (alist-get 'temperature_2m cur))
+         (ccode (alist-get 'weather_code cur)))
+    (when (and cur (stringp ctime) (>= (length ctime) 13)
+               (numberp ctemp) (numberp ccode)
+               (consp times) (consp temps) (consp codes))
+      (let* (;; current.time 是 15 分钟级 ("…T11:15"), hourly 是整点 →
+             ;; 取前 13 字符 ("…T11") 做前缀比对定位当前整点
+             (hour-key (substring ctime 0 13))
+             (i0 (seq-position times hour-key
+                               (lambda (x key)
+                                 (and (stringp x) (>= (length x) 13)
+                                      (string= key (substring x 0 13))))))
+             (cells nil))
+        ;; i0 找不到 (接口异常/跨日) → nil, 保留上次数据, 不猜
+        (when i0
+          ;; 第一格用 current (15 分钟级, 比整点预报更"现在")
+          (push (my-dash--weather-cell "现在" ccode ctemp t) cells)
+          (let ((k my-dash-weather-step))
+            (while (<= k my-dash-weather-horizon)
+              (let ((i (+ i0 k)))
+                (when (and (< i (length times)) (< i (length temps))
+                           (< i (length codes)))
+                  (push (my-dash--weather-cell
+                         (substring (nth i times) 11 16)  ; "13:00"
+                         (nth i codes) (nth i temps) nil)
+                        cells)))
+              (setq k (+ k my-dash-weather-step))))
+          (nreverse cells))))))
+
+(defun my-dash--weather-line (avail-px)
+  "把 `my-dash--weather-cells' 拼成一行: 城市名 + 尽量多的格 (格间 3 空格).
+居中交给 `my-dash--insert-block' (它按像素算 pad; nerd 图标实测 18px vs 字符
+11px, 按列居中会偏右 ~1.5 列)。
+超出 AVAIL-PX 的格从右边丢掉, 至少留「现在」那格 (窄窗口/分屏自适应)."
+  (let* ((gap "   ")
+         (head (concat (propertize my-dash-weather-city
+                                   'face (list :foreground my-dash-c-cardhead
+                                               :weight 'bold))
+                       "  "))
+         (n (length my-dash--weather-cells)))
+    (while (and (> n 1)
+                (> (string-pixel-width
+                    (concat head (mapconcat #'identity
+                                            (seq-take my-dash--weather-cells n)
+                                            gap)))
+                   avail-px))
+      (setq n (1- n)))
+    (concat head
+            (mapconcat #'identity (seq-take my-dash--weather-cells n) gap))))
 
 (defvar my-dash--weather-last-direct nil
   "当前/最近一个子进程实际走的路线 (t = 直连, nil = 代理).")
@@ -1204,21 +1254,21 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
          (t
           ;; 记住这次真正生效的路线, 下次优先用它
           (setq my-dash--weather-prefer-direct my-dash--weather-last-direct)
-          (let ((line (condition-case nil
-                          (my-dash--weather-format
-                           (json-parse-string text :object-type 'alist
-                                                   :array-type 'list))
-                        (error nil))))
-            (if (null line)
+          (let ((cells (condition-case nil
+                           (my-dash--weather-cells-from-json
+                            (json-parse-string text :object-type 'alist
+                                                    :array-type 'list))
+                         (error nil))))
+            (if (null cells)
                 (message "Dashboard 天气: 返回内容无法解析 [%s], 保留上次数据"
                          (replace-regexp-in-string
                           "\n" " " (substring text 0 (min 80 (length text)))))
-              (setq my-dash--weather-text line
+              (setq my-dash--weather-cells cells
                     my-dash--weather-ts (float-time))
               (condition-case nil
                   (with-temp-file (my-dash--weather-cache-file)
                     (insert (prin1-to-string
-                             (cons line my-dash--weather-ts))))
+                             (cons cells my-dash--weather-ts))))
                 (error nil))
               (my-dash--rerender-soon)))))))))
 
@@ -1274,11 +1324,17 @@ FORCE 非 nil 时忽略\"本会话已取过\"的闩 (定时器/手动刷新用).
   (my-dash--weather-fetch t))
 
 (defun my-dash-insert-weather ()
-  "首页天气行 (整块居中); 还没有数据时整行不显示, 不留空行."
+  "首页天气行 = 小时条 (见 `my-dash--weather-line'), 居中走 `my-dash--insert-block'
+(它已按像素算 pad); 还没有数据时整行不显示, 不留空行."
   (my-dash--weather-cache-load)
-  (when my-dash--weather-text
-    (my-dash--insert-block (list my-dash--weather-text))
-    (insert "\n"))
+  (when my-dash--weather-cells
+    (let* ((win (get-buffer-window dashboard-buffer-name 'all-frames))
+           ;; 可用像素宽: 给 `my-dash--weather-line' 决定保留几格
+           ;; (GUI 取窗口正文像素宽; 无窗口/终端退回 80 列估算)
+           (avail (if (and win (display-graphic-p))
+                      (window-body-width win t)
+                    (* 80 (frame-char-width)))))
+      (my-dash--insert-block (list (my-dash--weather-line avail)))))
   (my-dash--weather-fetch))
 
 ;; 每 my-dash-weather-interval 自动刷一次 (子进程, 不阻塞界面)
