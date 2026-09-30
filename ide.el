@@ -422,6 +422,47 @@
 (defconst my-dash-c-bookmark "#b79bff" "书签行/电紫.")
 (defconst my-dash-c-button   "#5cff87" "导航按钮/磷光绿 (与主标题同色).")
 (defconst my-dash-c-footer   "#5f9f72" "页脚/暗磷光绿.")
+(defconst my-dash-c-weather  "#7fd7c0" "天气行/CRT 淡青.")
+
+;; ---------- 天气行可调参数 (改这里就够) ----------
+;; 换城市: 改 city/lat/lon 三项。city 只是显示名, 真正的坐标是 lat/lon。
+;; 查坐标: https://geocoding-api.open-meteo.com/v1/search?name=Yulin&count=5&language=en
+(defconst my-dash-weather-city "玉林" "天气行显示的城市名 (仅显示用).")
+(defconst my-dash-weather-lat 22.6305 "纬度 (玉林市中心).")
+(defconst my-dash-weather-lon 110.1469 "经度 (玉林市中心).")
+(defconst my-dash-weather-tz "Asia/Shanghai" "API 返回时间所用时区 (影响\"更新 HH:MM\").")
+(defconst my-dash-weather-interval (* 30 60) "自动刷新间隔 (秒).")
+(defconst my-dash-weather-timeout 12 "curl 单次取数超时 (秒).")
+(defconst my-dash-weather-codes
+  '((0 "晴" "nf-md-weather_sunny")
+    (1 "晴间多云" "nf-md-weather_sunny")
+    (2 "多云" "nf-md-weather_partly_cloudy")
+    (3 "阴" "nf-md-weather_cloudy")
+    (45 "有雾" "nf-md-weather_fog")
+    (48 "雾凇" "nf-md-weather_fog")
+    (51 "毛毛雨" "nf-md-weather_rainy")
+    (53 "毛毛雨" "nf-md-weather_rainy")
+    (55 "毛毛雨" "nf-md-weather_pouring")
+    (56 "冻毛毛雨" "nf-md-weather_snowy_rainy")
+    (57 "冻毛毛雨" "nf-md-weather_snowy_rainy")
+    (61 "小雨" "nf-md-weather_rainy")
+    (63 "中雨" "nf-md-weather_rainy")
+    (65 "大雨" "nf-md-weather_pouring")
+    (66 "冻雨" "nf-md-weather_snowy_rainy")
+    (67 "冻雨" "nf-md-weather_snowy_rainy")
+    (71 "小雪" "nf-md-weather_snowy")
+    (73 "中雪" "nf-md-weather_snowy")
+    (75 "大雪" "nf-md-weather_snowy_heavy")
+    (77 "米雪" "nf-md-weather_snowy")
+    (80 "阵雨" "nf-md-weather_partly_rainy")
+    (81 "阵雨" "nf-md-weather_rainy")
+    (82 "强阵雨" "nf-md-weather_pouring")
+    (85 "阵雪" "nf-md-weather_partly_snowy")
+    (86 "强阵雪" "nf-md-weather_snowy_heavy")
+    (95 "雷阵雨" "nf-md-weather_lightning_rainy")
+    (96 "雷暴伴冰雹" "nf-md-weather_hail")
+    (99 "雷暴伴冰雹" "nf-md-weather_lightning"))
+  "WMO weather code → (描述 图标名). 数据源 Open-Meteo 用的就是 WMO 码.")
 (defconst my-dash-card-rows 5 "Max content rows per section.")
 (defconst my-dash-card-gap 4 "Horizontal gap between nav buttons, in cols.")
 (defconst my-dash-matrix-gutter 6 "Horizontal gap between 2x2 matrix cells, in cols.")
@@ -936,6 +977,256 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
            (cdr (apply #'append
                        (mapcar (lambda (c) (cons "" c)) cells)))))))))
 
+;; ---------- 天气行 (Open-Meteo, 免费无 key) ----------
+;; 数据源 api.open-meteo.com (当前实况 + 今日高低温/降水概率, WMO 码转中文)。
+;; 取数走 curl 子进程 (-- 与 agenda 卡片同一套异步模式): 主进程零阻塞,
+;; 结果写 cache/weather-cache.el → 下次启动秒显; 每会话自动刷一次 +
+;; 每 my-dash-weather-interval 定时刷新一次。失败就保留上次数据, 不摆占位。
+;; 子进程环境刻意去掉代理变量: open-meteo 本机可直连, 而代理(7890)没开时
+;; curl 会连不上代理端口而失败。
+(defvar my-dash--weather-text nil
+  "格式化好的天气行; nil = 还没有数据 (整行不显示).")
+(defvar my-dash--weather-ts nil
+  "上次成功取数的时间 (float-time), 写在缓存里备用.")
+(defvar my-dash--weather-loading nil
+  "天气子进程进行中 (防重复派发).")
+(defvar my-dash--weather-refreshed nil
+  "本会话已自动取过一次 — 重渲染 (find-file-hook 等) 不再反复派子进程.")
+(defvar my-dash--weather-prefer-direct nil
+  "首选\"直连\"(不经代理). nil = 首选系统代理.
+实测本机: 直连 open-meteo 偶发 TLS 失败 (约 1/6), 走代理稳定 → 默认先代理;
+取数成功/失败后按实际生效的方式自动更新, 不用手改。")
+(defvar my-dash--weather-attempt 0
+  "本轮取数第几次尝试: 0 = 首选方式, 1 = 换另一种 (直连<->代理) 重试一次.")
+(defvar my-dash--weather-proc nil
+  "当前天气子进程 (看门狗超时要能杀掉).")
+(defvar my-dash--weather-watchdog nil
+  "看门狗 timer: 子进程挂死时清 loading, 保留旧数据.")
+(defvar my-dash--weather-timer nil
+  "定时刷新 timer (每 my-dash-weather-interval 一次).")
+
+(defun my-dash--weather-cache-file ()
+  "天气缓存文件路径 (~/.emacs.d/cache/, 已 gitignore)."
+  (expand-file-name "cache/weather-cache.el" user-emacs-directory))
+
+(defun my-dash--weather-cache-load ()
+  "读缓存 (上次会话的数据), 让启动时立刻有天气; 已有数据不覆盖."
+  (let ((f (my-dash--weather-cache-file)))
+    (when (and (null my-dash--weather-text) (file-exists-p f))
+      (condition-case nil
+          (with-temp-buffer
+            (insert-file-contents f)
+            (let ((data (read (current-buffer))))
+              (when (and (consp data) (stringp (car data)))
+                (setq my-dash--weather-text (car data)
+                      my-dash--weather-ts (cdr data)))))
+        (error nil)))))
+
+(defun my-dash--weather-url ()
+  "Open-Meteo 请求 URL (当前实况 + 今日高低温/降水概率)."
+  (format (concat "https://api.open-meteo.com/v1/forecast"
+                  "?latitude=%s&longitude=%s"
+                  "&current=temperature_2m,apparent_temperature,"
+                  "relative_humidity_2m,weather_code,wind_speed_10m"
+                  "&daily=temperature_2m_max,temperature_2m_min,"
+                  "precipitation_probability_max"
+                  "&timezone=%s&forecast_days=1")
+          my-dash-weather-lat my-dash-weather-lon my-dash-weather-tz))
+
+(defun my-dash--weather-env ()
+  "去掉代理变量的环境: open-meteo 可直连, 代理没开时 curl 反而连不上.
+⚠️ make-process 没有 :environment 关键字 (那是 Emacs 31+; 30 上传了会警告
+并忽略), 所以要用 let 动态绑定 `process-environment' — 子进程创建时读它."
+  (let (out)
+    (dolist (kv (or (bound-and-true-p process-environment) '()))
+      (unless (string-match-p
+               "\\`\\(?:all_proxy\\|ALL_PROXY\\|http_proxy\\|HTTP_PROXY\\|https_proxy\\|HTTPS_PROXY\\)="
+               kv)
+        (push kv out)))
+    (nreverse out)))
+
+(defun my-dash--weather-desc (code)
+  "WMO CODE → (描述 图标名); 未知码回退 \"--\"."
+  (or (cdr (assq code my-dash-weather-codes))
+      (list "--" "nf-md-weather_cloudy")))
+
+(defun my-dash--weather-format (json)
+  "JSON (alist, `json-parse-string' 结果) → 天气行字符串; 数据不全返回 nil."
+  (let* ((cur (alist-get 'current json))
+         (day (alist-get 'daily json))
+         (temp (alist-get 'temperature_2m cur))
+         (code (alist-get 'weather_code cur)))
+    (when (and cur (numberp temp) (numberp code))
+      (let* ((n (lambda (v) (if (numberp v) (number-to-string (round v)) "--")))
+             (feels (funcall n (alist-get 'apparent_temperature cur)))
+             (hum (funcall n (alist-get 'relative_humidity_2m cur)))
+             (wind (funcall n (alist-get 'wind_speed_10m cur)))
+             (lo (funcall n (car (alist-get 'temperature_2m_min day))))
+             (hi (funcall n (car (alist-get 'temperature_2m_max day))))
+             (pop (funcall n (car (alist-get 'precipitation_probability_max day))))
+             (info (my-dash--weather-desc code))
+             (icon (my-dash--icon (cadr info)))
+             (ts (alist-get 'time cur))
+             (fg (list :foreground my-dash-c-weather)))
+        ;; ⚠️ 整行 propertize 会覆盖图标的 nerd-icons 字体 face (变豆腐),
+        ;; 所以图标单独合成 face, 其余部分才整体上色 (见 my-dash--merge-face)。
+        (concat
+         (propertize icon 'face
+                     (my-dash--merge-face (get-text-property 0 'face icon) fg))
+         "  "
+         (propertize my-dash-weather-city
+                     'face (list :foreground my-dash-c-cardhead :weight 'bold))
+         (propertize
+          (concat "  " (car info) " " (funcall n temp) "°C"
+                  " · 体感 " feels "°"
+                  " · 湿度 " hum "%"
+                  " · 风 " wind " km/h"
+                  " · 今日 " lo "~" hi "°C"
+                  " · 降水 " pop "%"
+                  (when (and (stringp ts) (>= (length ts) 16))
+                    (concat " · " (substring ts 11 16))))
+          'face fg))))))
+
+(defvar my-dash--weather-last-direct nil
+  "当前/最近一个子进程实际走的路线 (t = 直连, nil = 代理).")
+
+(defun my-dash--weather-abort (why)
+  "收尾: 清 loading, 杀子进程/看门狗. 首次尝试失败则换另一种网络路径重试一次."
+  (setq my-dash--weather-loading nil)
+  (when (and (processp my-dash--weather-proc)
+             (process-live-p my-dash--weather-proc))
+    (kill-process my-dash--weather-proc))
+  ;; 先清空 proc: 被杀的子进程 sentinel 稍后跑, 发现 proc 不是自己 → 只做清理,
+  ;; 不会把新一轮的 loading/状态清掉 (见 `my-dash--weather-sentinel')。
+  (setq my-dash--weather-proc nil)
+  (when (timerp my-dash--weather-watchdog)
+    (cancel-timer my-dash--weather-watchdog))
+  (setq my-dash--weather-watchdog nil)
+  (if (< my-dash--weather-attempt 1)
+      (progn
+        (message "Dashboard 天气: %s, 换另一种网络路径重试" why)
+        (my-dash--weather-spawn 1))
+    (message "Dashboard 天气: %s (保留上次数据; M-x my-dash-weather-refresh 可重试)" why)))
+
+(defun my-dash--weather-sentinel (proc _event)
+  "子进程结束: 解析 JSON → 更新 my-dash--weather-text → 写缓存 → 重渲染."
+  (when (memq (process-status proc) '(exit signal))
+    ;; 过期子进程 (已被\"换路重试\"取代): 只清理缓冲, 别碰状态 —
+    ;; 它身上的看门狗/loading 已经属于新一轮了。
+    (if (and (processp my-dash--weather-proc)
+             (not (eq proc my-dash--weather-proc)))
+        (when (buffer-live-p (process-buffer proc))
+          (kill-buffer (process-buffer proc)))
+      (when (timerp my-dash--weather-watchdog)
+        (cancel-timer my-dash--weather-watchdog)
+        (setq my-dash--weather-watchdog nil))
+      (setq my-dash--weather-proc nil)
+      (let ((ok (eq (process-exit-status proc) 0))
+            (buf (process-buffer proc))
+            (text nil))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (setq text (buffer-string)))
+          (kill-buffer buf))
+        (setq my-dash--weather-loading nil)
+        ;; 成败都闩上: 失败时若闩不置, 每次重渲染都会再派一个 curl (白跑)。
+        ;; 想立刻重试: M-x my-dash-weather-refresh (定时器也会自动重试)。
+        (setq my-dash--weather-refreshed t)
+        (cond
+         ;; 首选方式失败 → 换另一种 (直连 <-> 代理) 再试一次
+         ((not ok)
+          (if (< my-dash--weather-attempt 1)
+              (progn
+                (message "Dashboard 天气: 取数失败 (退出码 %s), 换另一种网络路径重试"
+                         (process-exit-status proc))
+                (my-dash--weather-spawn 1))
+            (message "Dashboard 天气: 取数失败 (退出码 %s), 保留上次数据"
+                     (process-exit-status proc))))
+         (t
+          ;; 记住这次真正生效的路线, 下次优先用它
+          (setq my-dash--weather-prefer-direct my-dash--weather-last-direct)
+          (let ((line (condition-case nil
+                          (my-dash--weather-format
+                           (json-parse-string text :object-type 'alist
+                                                   :array-type 'list))
+                        (error nil))))
+            (if (null line)
+                (message "Dashboard 天气: 返回内容无法解析 [%s], 保留上次数据"
+                         (replace-regexp-in-string
+                          "\n" " " (substring text 0 (min 80 (length text)))))
+              (setq my-dash--weather-text line
+                    my-dash--weather-ts (float-time))
+              (condition-case nil
+                  (with-temp-file (my-dash--weather-cache-file)
+                    (insert (prin1-to-string
+                             (cons line my-dash--weather-ts))))
+                (error nil))
+              (my-dash--rerender-soon)))))))))
+
+(defun my-dash--weather-spawn (&optional attempt)
+  "派 curl 子进程取数 (异步, 不阻塞界面).
+ATTEMPT 0 = 按 `my-dash--weather-prefer-direct' 选路; 1 = 换成另一种路线重试."
+  (let* ((attempt (or attempt 0))
+         (direct (if (zerop attempt)
+                     my-dash--weather-prefer-direct
+                   (not my-dash--weather-prefer-direct)))
+         (curl (executable-find "curl")))
+    (when curl
+      (setq my-dash--weather-attempt attempt)
+      (setq my-dash--weather-last-direct direct)
+      (setq my-dash--weather-loading t)
+      ;; 看门狗先挂上 (派生失败会跳过它, loading 就再也清不掉了)
+      (setq my-dash--weather-watchdog
+            (run-at-time (+ my-dash-weather-timeout 5) nil
+                         (lambda ()
+                           (when my-dash--weather-loading
+                             (my-dash--weather-abort "子进程超时")))))
+      (condition-case err
+          ;; ⚠️ 路线靠 let 动态绑定 `process-environment' 控制: 直连 = 剥掉代理
+          ;; 变量; 走代理 = 保留系统环境 (make-process 30.2 无 :environment)。
+          (let ((process-environment (if direct
+                                         (my-dash--weather-env)
+                                       process-environment)))
+            (setq my-dash--weather-proc
+                  (make-process
+                   :name "my-dash-weather"
+                   :buffer (generate-new-buffer " *my-dash-weather*")
+                   :noquery t
+                   :command (list curl "-sS" "-m"
+                                  (number-to-string my-dash-weather-timeout)
+                                  (my-dash--weather-url))
+                   :sentinel #'my-dash--weather-sentinel)))
+        (error (my-dash--weather-abort
+                (format "派生失败: %s" (error-message-string err))))))))
+
+(defun my-dash--weather-fetch (&optional force)
+  "异步取天气 (curl 子进程, 不阻塞; 首选方式失败会自动换另一种路线重试一次).
+FORCE 非 nil 时忽略\"本会话已取过\"的闩 (定时器/手动刷新用)."
+  (unless my-dash--weather-loading
+    (my-dash--weather-cache-load)
+    (when (and (executable-find "curl")
+               (or force (not my-dash--weather-refreshed)))
+      (my-dash--weather-spawn 0))))
+
+(defun my-dash-weather-refresh ()
+  "手动重取天气 (取数失败后 / 想立刻看最新时用)."
+  (interactive)
+  (setq my-dash--weather-refreshed nil)
+  (my-dash--weather-fetch t))
+
+(defun my-dash-insert-weather ()
+  "首页天气行 (整块居中); 还没有数据时整行不显示, 不留空行."
+  (my-dash--weather-cache-load)
+  (when my-dash--weather-text
+    (my-dash--insert-block (list my-dash--weather-text))
+    (insert "\n"))
+  (my-dash--weather-fetch))
+
+;; 每 my-dash-weather-interval 自动刷一次 (子进程, 不阻塞界面)
+(setq my-dash--weather-timer
+      (run-with-timer my-dash-weather-interval my-dash-weather-interval
+                      (lambda () (my-dash--weather-fetch t))))
+
 (defvar my-dash--resize-timer nil "resize 防抖 timer.")
 (defun my-dash--resize-rerender (&rest _)
   (when (and (boundp 'dashboard-buffer-name)
@@ -1038,6 +1329,7 @@ see `my-dash--agenda-load-async'), so startup never blocks on org-agenda."
   (dashboard-startupify-list
    '(dashboard-insert-banner-title
      dashboard-insert-newline
+     my-dash-insert-weather
      my-dash-insert-navigator
      dashboard-insert-newline
      dashboard-insert-init-info
