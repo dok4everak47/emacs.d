@@ -450,6 +450,9 @@
 ;; 想回点阵字: 第一行换 "DotGothic16" 且高度设 1.15。
 (defconst my-dash-head-font "Terminus (TTF)" "分区标题字体.")
 (defconst my-dash-head-font-height 1.2 "分区标题字号倍数 (nil = 继承默认字号).")
+;; 分区列表行 (文件名/项目名/日程/书签) 字体: 与标题/按钮同一套复古字, 独立可调。
+(defconst my-dash-row-font "Terminus (TTF)" "分区列表行字体.")
+(defconst my-dash-row-font-height 1.2 "分区列表行字号倍数 (nil = 继承默认字号).")
 
 (defvar my-dash--font-attrs-cache (make-hash-table :test 'equal)
   "缓存 (字体名 . 倍数) → face plist, 免得每次渲染都 find-font.")
@@ -873,13 +876,15 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
          ;; 文字: 颜色 + my-dash-nav-font (字体没装时 my-dash--font-attrs 返回 nil → 默认字体)
          (fg (append icol (my-dash--font-attrs my-dash-nav-font my-dash-nav-font-height)))
          (iface (get-text-property 0 'face icon))
-         (hov (my-dash--merge-face iface 'highlight)))
+         (hov (my-dash--merge-face iface 'highlight))
+         ;; 文字悬停同样要带字体 (只给 'highlight 会瞬间掉回默认字体)
+         (thov (cons 'highlight fg)))
     (concat
      (propertize icon 'face (my-dash--merge-face iface icol)
                  'mouse-face hov 'keymap km 'help-echo help)
      " "
      (propertize title 'face fg
-                 'mouse-face 'highlight
+                 'mouse-face thov
                  'keymap km 'help-echo help))))
 
 (defun my-dash--navigator-flow ()
@@ -951,14 +956,19 @@ GUI 下按**像素**算左填充: 混排字体时等宽假设不成立 (点阵�
                                                                        my-dash-head-font-height))))
           lines)
     (dolist (r rows)
-      (let* ((fg `(:foreground ,(nth 3 r)))
+      (let* ((fg (append (list :foreground (nth 3 r))
+                         (my-dash--font-attrs my-dash-row-font
+                                              my-dash-row-font-height)))
+             ;; 悬停 face 必须带上字体: 只给 'highlight 的话悬停瞬间掉回默认字体,
+             ;; 行宽/字形跳一下 (图标那侧同理, 见 my-dash--navigator-btn)
+             (hov (cons 'highlight fg))
              (act (nth 2 r))
              (txt (my-dash--trunc (nth 1 r) text-width)))
         (push (concat "  " (my-dash--icon (nth 0 r)) " "
                       (if act
                           (propertize txt 'face fg
                                       'keymap (my-dash--click-map act)
-                                      'mouse-face 'highlight
+                                      'mouse-face hov
                                       'help-echo (format "RET: %S" act))
                         (propertize txt 'face fg)))
               lines)))
