@@ -116,6 +116,18 @@
   (or (when (fboundp 'projectile-project-root)
         (projectile-project-root))
       default-directory))
+
+;; 在文件树里新建文件 (C-c t n): VSCode 式"新建文件"的键盘入口。
+;; 用内置 `dired-create-empty-file' (Emacs 30) —— 输入名字回车即建空文件,
+;; 可写相对子路径 (如 src/foo.js, 父目录自动创建); 当前不在文件树/dired
+;; 窗口时先跳到文件树 (树没开就打开) 再建。
+(defun my-dired-new-file ()
+  "在文件树/dired 窗口新建空文件; 不在 dired 窗口时先跳到文件树。"
+  (interactive)
+  (unless (derived-mode-p 'dired-mode)
+    (dired-sidebar-jump-to-sidebar))
+  (call-interactively #'dired-create-empty-file))
+
 (use-package dired-sidebar
   :ensure t
   :demand t                                 ; :custom 变量需包加载才定义
@@ -124,7 +136,9 @@
   (;; 打开/收起侧边栏 (treemacs 同款 C-c t t)
    ("C-c t t" . dired-sidebar-toggle-sidebar)
    ;; 选中侧边栏窗口
-   ("C-c t d" . dired-sidebar-jump-to-sidebar))
+   ("C-c t d" . dired-sidebar-jump-to-sidebar)
+   ;; 在树里新建文件 (实现见上方 my-dired-new-file)
+   ("C-c t n" . my-dired-new-file))
   :custom
   (dired-sidebar-width 28)
   (dired-sidebar-theme 'nerd-icons)         ; 文件图标 (nerd-icons 已装)
@@ -132,7 +146,12 @@
   (dired-sidebar-refresh-on-project-switch t) ; 切项目时自动刷新根目录
   (dired-sidebar-close-sidebar-on-file-open nil) ; 打开文件后树保留
   (dired-sidebar-pop-to-sidebar-on-toggle-open nil) ; toggle 打开时不抢焦点
-  (dired-sidebar-project-root-fn #'my-dired-sidebar-project-root)) ; 走 projectile (见下方)
+  (dired-sidebar-project-root-fn #'my-dired-sidebar-project-root) ; 走 projectile (见下方)
+  :config
+  ;; 新建空文件后自动刷新侧边栏: 包默认的刷新名单只有 dired-create-directory,
+  ;; 名单里的命令会被 :after advice 挂 dired-sidebar-refresh-buffer;
+  ;; 该 advice 在每次进入 dired-sidebar-mode 时按当时的名单重新安装。
+  (add-to-list 'dired-sidebar-special-refresh-commands 'dired-create-empty-file))
 
 ;; ---------- dired 增强 (C-x d 原生 + C-x D 选目录) ----------
 ;; 双命令分工, 各司其职:
@@ -405,6 +424,7 @@
     ["文件树 (Explorer)" dired-sidebar-toggle-sidebar t]
     ["切换到文件树窗口" dired-sidebar-jump-to-sidebar t]
     ["刷新文件树" revert-buffer t]
+    ["新建文件 (文件树内 C-c t n)" my-dired-new-file t]
     ["项目内找文件" my-consult-projectile-find-file t]
     ["切换项目" projectile-switch-project t]
     ["启动 LSP" lsp t]

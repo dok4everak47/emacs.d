@@ -50,6 +50,17 @@
       (push (format "[%s] dired C-c o → my-dired-open-default-app (实际 %s)" (if (eq cco 'my-dired-open-default-app) "OK" "FAIL") cco) out)
       (push (format "[%s] dired 默认隐藏详情 (实际 %S)" (if hdd "OK" "FAIL") hdd) out)))
 
+  ;; 4b. 文件树新建文件 (2026-10-02 新增: C-c t n → my-dired-new-file + 刷新名单)
+  (progn
+    (require 'dired-sidebar nil t)
+    (let ((k (key-binding (kbd "C-c t n")))
+          (fn (fboundp 'my-dired-new-file))
+          (l (and (boundp 'dired-sidebar-special-refresh-commands)
+                  (memq 'dired-create-empty-file dired-sidebar-special-refresh-commands))))
+      (push (format "[%s] C-c t n → my-dired-new-file (实际 %S)" (if (eq k 'my-dired-new-file) "OK" "FAIL") k) out)
+      (push (format "[%s] my-dired-new-file 已定义 (实际 %S)" (if fn "OK" "FAIL") fn) out)
+      (push (format "[%s] 刷新名单含 dired-create-empty-file (实际 %S)" (if l "OK" "FAIL") (and l t)) out)))
+
   ;; 4. flymake/consult 嵌套守卫: C-c ! f 应绑定 consult-flymake
   (progn
     (require 'consult nil t)

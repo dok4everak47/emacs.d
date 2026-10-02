@@ -26,6 +26,7 @@
 **IDE 外观 (ide.el)**
 - One Dark 主题、标签页 (tab-bar)、侧边栏文件树 (dired-sidebar)、行号、状态栏
 - lsp-mode + lsp-ui（PHP/Python/JS/TS/Rust 自动启动；nix 走内置 eglot + nixd）、菜单栏"IDE"菜单（GUI 操作）
+- 文件树里新建文件：`C-c t n`（不在树窗口时会先跳到树；可写 `src/foo.js` 相对路径，父目录自动建）· 新建目录用 dired 原生 `+` · 菜单栏 IDE → 新建文件
 - Dashboard 导航页（emacs-dashboard 包）：navigator 快捷按钮（邮件 / 文件树 / 退出 / agenda / capture …）+ 2x2 分区（上排 Recent Files · Projects，下排 Agenda · Bookmarks，窗口 <54 列自动退回单列）+ Nerd 图标 + 垂直居中；agenda 卡由子进程异步刷新，万一卡住可 `M-x my-dash-agenda-refresh` 手动重来
 
 **搜索与补全 (lisp/init-completion.el)**
