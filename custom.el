@@ -1,3 +1,4 @@
+;;; -*- lexical-binding: t; -*-
 ;;; custom.el — Emacs Customize 自动写入区 (机器生成, 请勿手改)
 ;;; M-x customize-* 改的设置由 Emacs 自动保存到这里;
 ;;; init.el 只手写内容, 机器生成的设置一律隔离在此文件, 主配置永不被污染。
