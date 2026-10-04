@@ -795,6 +795,16 @@
            (t (forward-line 1)))))
       (nreverse out))))
 
+(defun my-org-index--esc-brackets (s)
+  "把标题/文件名里的 [ ] 转义成 \\[ \\], 供生成 [[file:...::*标题][标题]] 用。
+不转义时 org 会在第一个 ] 处截断链接 → 点它弹 \"No match - create this as a
+new heading?\" (2026-10-04 实测 elm-tea.org 的标题 \"List 和 []\")。转义后
+org 能正确定位 (实测 org-link-open 落到该标题), 代价: 描述文字里会显示
+\\[ \\] —— org 不会隐藏链接描述里的转义符。"
+  (replace-regexp-in-string "\\(\\[\\)\\|\\(\\]\\)"
+                            (lambda (m) (if (equal m "[") "\\[" "\\]"))
+                            s t t))
+
 (defun my-org-rebuild-index ()
   "重建 ~/org/index.org: 汇总笔记文件的标题, 生成跨文件跳转链接。"
   (interactive)
@@ -811,13 +821,16 @@
           (setq lines (append lines
                               (list "" (format "* %s" (file-name-nondirectory file)))))
           (dolist (h hs)
-            (setq lines (append lines (list (format "  - [[file:%s::*%s][%s]]" file h h))))))))
+            (let ((he (my-org-index--esc-brackets h)))   ; 标题含 [] 时转义, 否则链接被截断
+              (setq lines (append lines (list (format "  - [[file:%s::*%s][%s]]" file he he)))))))))
     ;; 附录: 全部笔记 org 文件 (与正文同集, 用 ~/org/ 相对形式)
     (setq lines (append lines '("" "* 附录: 全部笔记文件快速跳转")))
     (dolist (f (my-org-index-files))
       (let* ((rel (file-relative-name f (expand-file-name org-directory)))
              (target (concat (file-name-as-directory org-directory) rel)))
-        (setq lines (append lines (list (format "  - [[file:%s][%s]]" target rel))))))
+        (setq lines (append lines (list (format "  - [[file:%s][%s]]"
+                                                (my-org-index--esc-brackets target)
+                                                (my-org-index--esc-brackets rel)))))))
     (with-temp-buffer
       (insert (mapconcat #'identity lines "\n") "\n")
       (write-file (expand-file-name "index.org" org-directory)))
