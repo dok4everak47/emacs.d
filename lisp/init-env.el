@@ -130,5 +130,44 @@
   ;; (二次初始化 + 卡顿, 2026-08 用户报 treemacs 打开文件卡顿)。代价: 启动 +~0.5s。
   (my-treesit-auto-activate))
 
+;; ---------- 性能修复: treesit-auto 别每次判模式都重建 remap 表 ----------
+;; 2026-10-04 实测定位 (用户报「保存 org 笔记卡好一会」的根因):
+;; global-treesit-auto-mode 会给 set-auto-mode-0 挂 :before advice
+;; (treesit-auto--set-major-remap), 而它每次判文件模式都调
+;; treesit-auto--build-major-mode-remap-alist 重建整张 remap 表 — 逐个 recipe
+;; 跑 treesit-ready-p (语法包可用性检查)。本机 60 个 recipe ≈ 1.5s/次,
+;; 且一次 set-auto-mode 会调它好几次。
+;; 后果: 打开任何文件 ~1.5s; 保存 ~/org 笔记时索引自动重建 (内部 write-file
+;; 写 index.org 也走 set-auto-mode) → 每次保存卡 ~3s。
+;; 修法: remap 表一个会话内只取决于「本机装了哪些语法包」, 建一次缓存即可。
+;; 只缓存 treesit 生成的那部分, 用户自己的 major-mode-remap-alist 仍实时生效。
+;; 实测: 保存笔记 2.94s → 0.32s, 打开 .org 文件 1.51s → 0.001s (remap 结果不变)。
+(defvar my-treesit-remap-cache nil
+  "treesit-auto 生成的 remap 条目 (缓存); nil = 需重建。")
+(defun my-treesit-remap-refresh ()
+  "重建 treesit-auto 的 remap 缓存 (新装语法包后调一次)."
+  (interactive)
+  ;; 在临时 buffer 里 build: 那里 major-mode-remap-alist 就是全局值,
+  ;; 便于把 build 结果切成「用户原有部分 + treesit 部分」。
+  (let* ((base (length (default-value 'major-mode-remap-alist)))
+         (full (with-temp-buffer (treesit-auto--build-major-mode-remap-alist))))
+    (setq my-treesit-remap-cache (seq-drop full base))
+    (message "treesit-auto remap 缓存已重建 (%d 条)" (length my-treesit-remap-cache))))
+(defun my-treesit-set-major-remap (&rest _)
+  "替代 treesit-auto--set-major-remap: 用缓存, 不再每次重建。"
+  (unless my-treesit-remap-cache (my-treesit-remap-refresh))
+  (setq-local major-mode-remap-alist
+              (append major-mode-remap-alist my-treesit-remap-cache)))
+(advice-add 'treesit-auto--set-major-remap :override #'my-treesit-set-major-remap)
+;; treesit-auto 装完新语法包后缓存要失效 (否则新 ts-mode 当次不生效);
+;; 用 :around 看返回值 — 只有真装成功 (非 nil) 才清缓存, 用户答「不装」不清。
+(defun my-treesit-remap-after-install (orig lang &rest args)
+  "装语法包成功后清 remap 缓存 (见 `my-treesit-remap-cache`)."
+  (let ((installed (apply orig lang args)))
+    (when installed (setq my-treesit-remap-cache nil))
+    installed))
+(advice-add 'treesit-auto--prompt-to-install-package :around
+            #'my-treesit-remap-after-install)
+
 (provide 'init-env)
 ;;; init-env.el ends here
