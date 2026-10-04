@@ -158,6 +158,11 @@
 ;; - C-x d: 原生 dired, 直接敲路径/补全进目录 — 符合肌肉记忆, 快速浏览。
 ;; - C-x D: consult-dir 弹候选选目录 (历史/项目/recentf/bookmark) 后进 dired —
 ;;   需要跳历史路径或项目根时用. 窄化: p=项目 r=recentf h=输入历史 .=当前.
+;; consult-dir-default-command 声明为 special: 下面 my-dired-choose 靠 let 动态绑定
+;; 它来换默认命令。源码解释执行时(require 之后)本来就是 special, 但若 ide.el 被字节
+;; 编译, 编译器不知道它是 special → 把 let 编成词法绑定 → 静默失效 (编译告警
+;; "Unused lexical variable 'consult-dir-default-command" 就是征兆)。2026-10-04 加声明。
+(defvar consult-dir-default-command)
 (defun my-dired-choose ()
   "选择目录后打开 dired (候选含项目根/项目/历史/最近目录)."
   (interactive)
@@ -735,7 +740,13 @@ org-agenda 在 GUI 里逐个打开 agenda 文件很慢 (实测 ~2s/文件) — �
                                  (my-dash--agenda-abort "子进程超时 (15s)")))))
           (condition-case err
               (progn
-                (delete-file out t)
+                ;; ⚠️ 别写 (delete-file out t): 第二个参数是 TRASH(丢废纸篓),
+                ;; 不是"不存在就忽略"。文件不存在时抛 (file-missing "Removing old
+                ;; name" "No such file or directory") → 被下面 catch 成"派生失败",
+                ;; 本轮会话的 agenda 卡就此闩死在缓存数据上; macOS 每次重启清空
+                ;; /tmp, 所以首次启动必然触发。文件存在时还会把临时文件丢进废纸篓
+                ;; (init-qol.el 全局开了 delete-by-moving-to-trash)。2026-10-04 修。
+                (when (file-exists-p out) (delete-file out))
                 (setq my-dash--agenda-proc
                       (make-process
                  :name "my-dash-agenda"
