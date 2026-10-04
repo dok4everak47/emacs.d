@@ -4,10 +4,13 @@
 ;;; 跑一遍确认没把环境改坏 (2026-08 事故后建立的自检习惯)。
 ;;;
 ;;; 用法 (重启 Emacs 后, 终端执行):
-;;;   /Applications/Emacs.app/Contents/MacOS/bin/emacsclient -e "$(cat ~/.emacs.d/verify-fixes.el)"
+;;;   emacsclient -e "$(cat ~/.emacs.d/verify-fixes.el)"
 ;;;
-;;; 输出全部 "[OK]" 即通过; 任何 "[FAIL]" 说明对应配置未生效。
-;;; 注意: 输出是一行 \n 转义的字符串, 视觉上正常显示, 不影响判断。
+;;; 输出: 终端只回一行短摘要 (N 项检查 / FAIL 几条), 全文写 cache/verify-fixes.out。
+;;; 全 OK 即通过; 任何 [FAIL] 说明对应配置未生效。
+;;; ⚠️ 别把长中文串直接当返回值: emacsclient 的服务器按块发送, 每约 900 字节会把一个
+;;;    多字节字符切成两半 → 客户端打 "*ERROR*: Unknown message" 并搅乱输出 (2026-10-04
+;;;    实测: 中文 300 字 0 条错 / 500 字 1 条 / 2000 字 5 条; 纯 ASCII 6000 字节 0 条)。
 ;;;
 ;;; 检查项: .elc 污染 / dired-subtree 真加载 / dired 键位+auto-revert /
 ;;; flymake-consult 绑定 / vterm+vundo+impatient :custom 变量 / 启动警告。
@@ -141,4 +144,15 @@
             (push (format "[%s] 无 initialization 警告 (Warnings buffer 存在, %d 字符)" (if (string-match-p "initialization" txt) "FAIL" "OK") (length txt)) out)))
       (push "[OK] 无 *Warnings* buffer (启动完全干净)" out)))
 
-  (mapconcat #'identity (nreverse out) "\n"))
+  ;; 7. 输出: 终端只回一行短摘要 (避免 emacsclient 分块截断长非 ASCII 串), 全文落 cache/
+  (let* ((lines (nreverse out))
+         (checks (seq-filter (lambda (l) (string-match-p "\\[\\(OK\\|FAIL\\)\\]" l)) lines))
+         (fails (seq-filter (lambda (l) (string-match-p "\\[FAIL\\]" l)) checks))
+         (f (expand-file-name "cache/verify-fixes.out" user-emacs-directory)))
+    (with-temp-file f (insert (mapconcat #'identity lines "\n") "\n"))
+    (format "%d 项检查, FAIL %d 条%s → 全文 %s"
+            (length checks) (length fails)
+            (if fails (concat ": " (mapconcat (lambda (l) (string-replace "[FAIL] " "" l))
+                                              fails " | "))
+              "")
+            f)))
