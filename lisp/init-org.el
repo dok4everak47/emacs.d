@@ -925,5 +925,157 @@ org 能正确定位 (实测 org-link-open 落到该标题), 代价: 描述文字
   ;; org-roam-db-autosync-mode: 自动同步数据库 (增删改自动更新)
   (org-roam-db-autosync-mode +1))
 
+;; ---------- 中文紧贴标记的强调 (CJK emphasis, 2026-10-05) ----------
+;; 症状: 「这是**粗体**字」「**重点**后面」「前面*重要*」— 汉字紧贴标记时, 导出 HTML 里
+;;       标记原样保留, buffer 里也不变粗 (org 认不出这是强调)。
+;; 原因: 强调边界写死了一组 ASCII 字符 —— 开标记前必须是 行首/空白/ - ( ' " {,
+;;       闭标记后必须是 行尾/空白/ - . , ; : ! ? ' " ) } ] [ —— 汉字和中文标点都不在里面。
+;; 而且边界有**两套**, 必须分别改 (Emacs 30.2 / Org 9.7.11 实测确认):
+;;   1) buffer 高亮 → org-do-emphasis-faces 用 org-emph-re 判定
+;;      (源自 org-emphasis-regexp-components);
+;;   2) 导出 HTML (ox-*) → 走 org-element 解析器, 边界硬编码在
+;;      org-element--parse-generic-emphasis 里, 跟 org-emphasis-regexp-components **毫无关系**
+;;      → 网上常见方子「改 org-emphasis-regexp-components 支持中文粗体」对导出完全无效。
+;; 修法: 只对 my-org-emph-cjk-marks 里列出的标记放宽边界 (默认只放宽 '*' 粗体);
+;;       两处共用同一份字符集 (my-org-emph-pre/post) 和同一份标记表 → 显示与导出保持一致。
+;; ⚠️ 为什么不把所有标记一起放宽 (2026-10-05 实测的真实代价, 先想清楚再改 my-org-emph-cjk-marks):
+;;   '/' → 「他/她 和 读/写/执行」会把「她 和 读」渲染成斜体, 「甲/乙/丙」把「乙」变斜体。
+;;         中文里 '/' 当"或"用太常见, 危害最大, 所以默认不纳入。
+;;   '_' → 跟 org 的下标语法 (_x 即下标) 抢, 语义会变 (导出反而更干净, 但要你自己确认能接受)。
+(defvar my-org-emph-cjk-marks '("*")
+  "哪些强调标记在紧贴 CJK 字符时也生效 (默认只 '*' 粗体)。其它标记保持 org 原行为。")
+
+(defvar my-org-emph-cjk--installed nil
+  "CJK 强调的 font-lock 规则是否已装 (防重复加载本文件时装两次)。")
+
+(defvar my-org-emph-cjk-chars "一-鿿　-〿！-～‘-”…—"
+  "强调边界里额外允许的字符: 汉字 (U+4E00-9FFF) + 中文标点
+(全角空格-〿 / ！-～ / 弯引号 ‘-” / 省略号 … / 破折号 —)。
+⚠️ 只加汉字不够: 「（**重点**）」这类全角标点紧贴标记会把开标记判在汉字后面、吞掉正文
+(2026-10-05 A/B 实测踩到), 所以中文标点一起加。")
+
+(defvar my-org-emph-pre  (concat "-[:space:]('\"{" my-org-emph-cjk-chars)
+  "开标记前允许的字符 (org 原值 + CJK)。")
+(defvar my-org-emph-post (concat "-[:space:].,:!?;'\")}\\[" my-org-emph-cjk-chars)
+  "闭标记后允许的字符 (org 原值 + CJK)。")
+
+;; 标记 → org-element 对象类型 (守卫要拿它问解析器"这里真是强调对象吗")
+(defvar my-org-emph-cjk-types
+  '(("*" . bold) ("/" . italic) ("_" . underline)
+    ("=" . verbatim) ("~" . code) ("+" . strike-through))
+  "强调标记对应的 org-element 对象类型。")
+
+;; 构造「CJK 边界版」强调正则。组号与 org-emph-re 对齐, 方便取用正文:
+;;   1=前字符  2=整体(含标记)  3=标记  4=正文  5=后字符
+(defun my-org-emph-cjk-re (mark)
+  "为标记 MARK 生成 CJK 边界版强调正则 (组号与 org-emph-re 一致)。
+body 部分与 org 的构造相同 (body-regexp \".\" + nl=1 → 最多跨 1 个换行)。"
+  (let* ((border "[:space:]")
+         (body ".*?\\(?:\\n.*?\\)\\{0,1\\}")
+         (template (format (concat "\\([%s]\\|^\\)"
+                                   "\\(\\([%%s]\\)\\([^%s]\\|[^%s]%s[^%s]\\)\\3\\)"
+                                   "\\([%s]\\|$\\)")
+                           my-org-emph-pre border border body border my-org-emph-post)))
+    (format template mark)))
+
+;; ---------- (1) buffer 高亮: 给 org-mode 加一条 font-lock 规则 ----------
+;; 守卫不自己判边界, 而是直接问解析器: (org-element-context) 在这里是不是 TYPE 对象。
+;; 因为导出走的就是这个解析器 (下面 (2) 已把它调宽), 这样 buffer 显示与导出结果**永远一致** ——
+;; src 块 / 固定宽度行(: xxx) / =等宽= / ~代码~ / $公式$ / :PROPERTIES: 属性抽屉
+;; 这些"导出里不算强调"的地方不会被点亮 (2026-10-05 用 24 类上下文逐一对过)。
+(defun my-org-emph-cjk--matcher (re type)
+  "返回 font-lock matcher: 只在解析器真把该位置认成 TYPE 对象时生效。"
+  (lambda (limit)
+    (catch :found
+      (while (re-search-forward re limit t)
+        ;; save-match-data 不可省: org-element-context 内部会做检索, 会把 match data 清掉,
+        ;; font-lock 随后报 "No match 2 in highlight (2 'bold prepend)"。
+        (when (save-match-data
+                (eq type (ignore-errors
+                           (save-excursion
+                             (goto-char (match-beginning 2))
+                             (org-element-type (org-element-context))))))
+          (throw :found t)))
+      nil)))
+
+(with-eval-after-load 'org
+  ;; 守卫要用 org-element-context (autoload), 顺手 require 一下保证确定性; ~90ms。
+  (require 'org-element nil t)
+  (unless my-org-emph-cjk--installed
+    (font-lock-add-keywords
+     'org-mode
+     (mapcar (lambda (mark)
+               (cons (my-org-emph-cjk--matcher
+                      (my-org-emph-cjk-re mark)
+                      (cdr (assoc mark my-org-emph-cjk-types)))
+                     (list (if org-hide-emphasis-markers 4 2)
+                           ;; FACE 会被 font-lock 求值, 符号必须 quote (否则 void-variable bold)
+                           (list 'quote (nth 1 (assoc mark org-emphasis-alist)))
+                           'prepend)))
+             my-org-emph-cjk-marks))
+    (setq my-org-emph-cjk--installed t)))
+
+;; ---------- (2) 导出: 替换 org-element 的强调解析函数 ----------
+;; 除边界字符集外与 Org 9.7 上游逐行一致 —— 偏移量算法 (contents-begin/contents-end/closing)
+;; 不能动, 动了会吞正文。标记不在 my-org-emph-cjk-marks 里时交回上游原函数。
+(defvar my-org-element--parse-generic-emphasis--stock nil
+  "org-element--parse-generic-emphasis 的上游原函数 (非 CJK 标记兜底用)。")
+(declare-function org-element-create "org-element-ast" (type &optional props &rest children))
+(defun my-org-element--parse-generic-emphasis (mark type)
+  "上游 org-element--parse-generic-emphasis 的 CJK 边界版 (只放宽字符集)。
+MARK 是标记串, TYPE 是 bold/code/italic/strike-through/underline/verbatim 之一。
+假定 point 在第一个 MARK 上。"
+  (if (not (member mark my-org-emph-cjk-marks))
+      (funcall my-org-element--parse-generic-emphasis--stock mark type)
+    (save-excursion
+      (let ((origin (point)))
+        (unless (bolp) (forward-char -1))
+        (let ((opening-re
+               (rx-to-string
+                `(seq (or line-start (regexp ,(format "[%s]" my-org-emph-pre)))
+                      ,mark
+                      (not space)))))
+          (when (looking-at-p opening-re)
+            (goto-char (1+ origin))
+            (let ((closing-re
+                   (rx-to-string
+                    `(seq
+                      (not space)
+                      (group ,mark)
+                      (or (regexp ,(format "[%s]" my-org-emph-post))
+                          line-end)))))
+              (when (re-search-forward closing-re nil t)
+                (let ((closing (match-end 1)))
+                  (goto-char closing)
+                  (let* ((post-blank (skip-chars-forward " \t"))
+                         (contents-begin (1+ origin))
+                         (contents-end (1- closing)))
+                    (org-element-create
+                     type
+                     (append
+                      (list :begin origin
+                            :end (point)
+                            :post-blank post-blank)
+                      (if (memq type '(code verbatim))
+                          (list :value
+                                (and (memq type '(code verbatim))
+                                     (org-element-deferred-create
+                                      t #'org-element--substring
+                                      (- contents-begin origin)
+                                      (- contents-end origin))))
+                        (list :contents-begin contents-begin
+                              :contents-end contents-end))))))))))))))
+
+(with-eval-after-load 'org-element
+  ;; 只抓一次上游原函数: 重复加载本文件时 symbol-function 已经是 advice 后的版本,
+  ;; 再抓一次会让 --stock 指向自己 → 无限递归。
+  (unless my-org-element--parse-generic-emphasis--stock
+    (setq my-org-element--parse-generic-emphasis--stock
+          (symbol-function 'org-element--parse-generic-emphasis)))
+  (unless (advice-member-p #'my-org-element--parse-generic-emphasis
+                           'org-element--parse-generic-emphasis)
+    (advice-add 'org-element--parse-generic-emphasis :override
+                #'my-org-element--parse-generic-emphasis)))
+
 (provide 'init-org)
 ;;; init-org.el ends here

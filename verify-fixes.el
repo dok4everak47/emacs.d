@@ -13,7 +13,8 @@
 ;;;    实测: 中文 300 字 0 条错 / 500 字 1 条 / 2000 字 5 条; 纯 ASCII 6000 字节 0 条)。
 ;;;
 ;;; 检查项: .elc 污染 / dired-subtree 真加载 / dired 键位+auto-revert /
-;;; flymake-consult 绑定 / vterm+vundo+impatient :custom 变量 / 启动警告。
+;;; flymake-consult 绑定 / vterm+vundo+impatient :custom 变量 / Rust 环境 /
+;;; 补全键位 / meow leader / 中文紧贴标记的强调 (CJK emphasis) / 启动警告。
 ;;;
 ;;; 2026-08: 因 batch 编译生成有毒 .elc 和 use-package :custom 静默失效
 ;;; 两次事故而创建。新增配置后应把新变量/键位追加到下方检查列表。
@@ -135,6 +136,59 @@
       (push (format "[%s] SPC s s 未受影响 → surround-insert (实际 %S)" (if (eq ss 'surround-insert) "OK" "FAIL") ss) out)
       (push (format "[%s] SPC f f → consult-fd (实际 %S)" (if (eq ff 'consult-fd) "OK" "FAIL") ff) out)
       (push (format "[%s] SPC f g → consult-ripgrep (实际 %S)" (if (eq fg 'consult-ripgrep) "OK" "FAIL") fg) out)))
+
+  ;; 5e. 中文紧贴标记的强调 (2026-10-05 新增: buffer 高亮 + HTML 导出都认汉字边界)
+  (progn
+    (require 'org nil t)
+    (require 'org-element nil t)
+    (require 'ox-html nil t)
+    (let ((marks (and (boundp 'my-org-emph-cjk-marks) my-org-emph-cjk-marks))
+          (inst (and (boundp 'my-org-emph-cjk--installed) my-org-emph-cjk--installed))
+          (adv (advice-member-p 'my-org-element--parse-generic-emphasis
+                                'org-element--parse-generic-emphasis)))
+      (push (format "[%s] CJK 强调: 标记表只有 * 粗体 (实际 %S)" (if (equal marks '("*")) "OK" "FAIL") marks) out)
+      (push (format "[%s] CJK 强调: font-lock 规则已装 (实际 %S)" (if inst "OK" "FAIL") inst) out)
+      (push (format "[%s] CJK 强调: 导出解析函数已替换 (实际 %S)" (if adv "OK" "FAIL") (and adv t)) out))
+    ;; 功能面: 汉字紧贴的 **粗体** 在 buffer 里应变粗, 导出应变 <b>
+    (with-temp-buffer
+      (insert "这是**粗体**字")
+      (org-mode)
+      (font-lock-ensure)
+      (goto-char (point-min))
+      (search-forward "粗体")
+      (let ((face (get-char-property (match-beginning 0) 'face))
+            (html (with-current-buffer (org-html-export-as-html nil nil nil t)
+                    (buffer-string))))
+        (push (format "[%s] CJK 强调: buffer 里「粗体」是 bold (实际 %S)" (if (memq 'bold face) "OK" "FAIL") face) out)
+        (push (format "[%s] CJK 强调: 导出 HTML 含 <b><b>粗体</b></b> (实际 %S)"
+                      (if (string-match-p "<b><b>粗体</b></b>" html) "OK" "FAIL")
+                      (and (string-match-p "<b>" html) t))
+              out)))
+    ;; 兜底: "/" 不在标记表里, «读/写/执行» 的 写 不能被当强调 (变斜体)
+    (with-temp-buffer
+      (insert "他/她 和 读/写/执行")
+      (org-mode)
+      (font-lock-ensure)
+      (goto-char (point-min))
+      (search-forward "写")
+      (let ((face (get-char-property (match-beginning 0) 'face)))
+        (push (format "[%s] CJK 强调兜底: 「读/写/执行」的 写 没变斜体 (实际 %S)"
+                      (if (memq 'italic face) "FAIL" "OK") face)
+              out)))
+    ;; 守卫: 只在该位置真是强调对象时点亮 (固定宽度行 : xxx 里不能亮 — 导出里不算强调)
+    (with-temp-buffer
+      (insert "段落 这是**重点**字\n\n: 固定宽度 这是**重点**字\n")
+      (org-mode)
+      (font-lock-ensure)
+      (goto-char (point-min))
+      (let (res)
+        (while (re-search-forward "重点" nil t)
+          (let ((f (get-text-property (match-beginning 0) 'face)))
+            (push (if (and f (or (eq f 'bold) (and (listp f) (memq 'bold f)))) "bold" "-") res)))
+        (let ((res (nreverse res)))
+          (push (format "[%s] CJK 强调守卫: 段落亮/固定宽度行不亮 (实际 %S)"
+                        (if (equal res '("bold" "-")) "OK" "FAIL") res)
+                out)))))
 
   ;; 6. 干净启动无初始化错误 (查 *Warnings* 是否有 initialization)
   (let ((w (get-buffer "*Warnings*")))
